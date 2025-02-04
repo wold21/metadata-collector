@@ -1,7 +1,6 @@
-import requests
-import json
 from utils.cal_date import parse_incomplete_date
 from shared_info import SharedInfo
+from utils.common_request import get
 
 PRIMARY_ALBUM_TYPE_DICT = {
     'album': '정규앨범',
@@ -16,6 +15,7 @@ SECONDARY_ALBUM_TYPE_DICT = {
     'compilation' : '컴필레이션',
     'demo': '데모',
     'dj' : '디제이',
+    'dj-mix' : '디제이 믹스',
     'field' : '필드',
     'interview' : '인터뷰',
     'live' : '라이브',
@@ -29,80 +29,136 @@ SECONDARY_ALBUM_TYPE_DICT = {
     'other': '기타'
 }
 
-def getTopAlbums():
-    # url = f'https://ws.audioscrobbler.com/2.0/'
-    url = f'https://musicbrainz.org/ws/2/release-group/'
-    # params = {
-    #     'method': 'artist.getTopAlbums',
-    #     'mbid': '381086ea-f511-4aba-bdf9-71c753dc5077',
-    #     'api_key': SharedInfo.get_api_key(),
-    #     'format': 'json',
-    #     'limit': 1
-    # }
-    params = {
-        'artist': 'f27ec8db-af05-4f36-916e-3d57f91ecf5e',
+def getTopAlbums(artist_id, artist_name, mbid):
+    temp_data = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
+        'artist': mbid,
         'fmt': 'json',
-    }
+    })
+    
+    albums_info = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
+        'artist': mbid,
+        'limit': temp_data['release-group-count'],
+        'fmt': 'json',
+    })
+    
+    print(f'아티스트 앨범 정보')
+    for album in albums_info['release-groups']:
+        album_mbid = album['id']
+        album_name = album['title']
+        primary_album_type_en = album['primary-type'].lower()
+        primary_album_type_kr = PRIMARY_ALBUM_TYPE_DICT[album['primary-type'].lower()]
 
-    response = requests.get(url, params=params)
+        primary_album_type = {
+            'en': primary_album_type_en,
+            'kr': primary_album_type_kr
+        }
+        secondary_album_type_arr = []
+    
+        # if secondary type exists
+        if 'secondary-types' in album:
+            for type_str in album['secondary-types']:
+                type_en = type_str.lower()
+                type_kr = SECONDARY_ALBUM_TYPE_DICT[type_en]
+                secondary_album_type_arr.append({
+                    'en': type_en,
+                    'kr': type_kr
+                })
+        release_date = parse_incomplete_date(album['first-release-date'])
+        release_date_origin = album['first-release-date']
 
-    if(response.status_code == 200):
-        response_json = response.json()
-        params.update({'limit': response_json['release-group-count']})
-        response = requests.get(url, params=params)
-        if(response.status_code == 200):
-            response_json = response.json()
-            # print(json.dumps(response_json, sort_keys=True, indent=4))
-            for album in response_json['release-groups']:
-                album_name = album['title']
-                primary_album_type_en = album['primary-type'].lower()
-                primary_album_type_kr = ALBUM_TYPE_DICT[album['primary-type'].lower()]
+        
+        
+        print(f'앨범명: {album_name}')
+        print(f'발매타입: {primary_album_type}')
+        print(f'앨범작업타입: {secondary_album_type_arr}')
+        print(f'발매일: {release_date}')
+        print(f'발매일(가공전): {release_date_origin}')
+        print(f'\n')
 
-                primary_album_type = {
-                    'en': primary_album_type_en,
-                    'kr': primary_album_type_kr
-                }
-                secondary_album_type_arr = []
+        # TODO
+        # 앨범 이미지 다운로드 로직 추가. 
+
+        # --------insert into album_tb--------
+        # exists
+            # pass
+        # not exists
+            # insert
+            # parameter: album_name, artist_id, release_date, release_date_origin
+            # return album_id
+
+        # --------insert into album_release_code--------
+        # exists
+            # return album_type_id
+        # not exists
+            # insert
+            # parameter: primary_album_type_en, primary_album_type_kr
+            # return album_type_id
+
+        # --------insert into album_type_tb-------- 
+        # primary & secondary
+        # exists
+            # return album_type_id
+        # not exists
+            # insert
+            # parameter: album_type_id, album_id, {category}
+            # return album_type_id
+        
+        
+        # --------insert into artist_album_tb--------
+        # exsit
+            # pass
+        # not exists
+            # insert
+            # parameter: artist_id, album_id
+            # return none
             
-                # if secondary type exists
-                if 'secondary-types' in album:
-                    for type_str in album['secondary-types']:
-                        type_en = type_str.lower()
-                        type_kr = ALBUM_TYPE_DICT[type_en]
-                        secondary_album_type_arr.append({
-                            'en': type_en,
-                            'kr': type_kr
-                        })
-                release_date = parse_incomplete_date(album['first-release-date'])
-                release_date_origin = album['first-release-date']
-
-                # print(album_name)
-                # print(primary_album_type)
-                # print(secondary_album_type_arr)
-                # print(release_date)
-                # print(release_date_origin)
-                # print(f'\n')
-
-
-                # --------insert into album_release_code--------
-                # exists
-                    # return album_type_id
-                # not exists
-                    # insert
-                    # parameter: primary_album_type_en, primary_album_type_kr
-                    # return album_type_id
-
-                # --------insert into album_tb--------
-                # exists
-                    # pass
-                # not exists
-                    # insert
-                    # parameter: album_name, artist_id, release_date
-
-                # --------insert into album_type_tb-------- 
-
-    else:
-        print("Get top artists error!")
+        # releases_data = get(SharedInfo.get_musicbrainz_base_url() + f'release-group/{release_group_id}', params={
+        #     'inc': 'releases',
+        #     'fmt': 'json'
+        # })
+        
+        tracks_info = get(SharedInfo.get_lastfm_base_url(), params={
+            'method': 'album.getinfo',
+            'artist': artist_name,
+            'album': album_name,
+            'api_key': SharedInfo.get_api_key(),
+            'format': 'json'
+        })
+        
+        if tracks_info and 'album' in tracks_info and 'tracks' in tracks_info['album']:
+            track_list = tracks_info['album']['tracks']['track']
+        
+        if not isinstance(track_list, list):
+            track_list = [track_list]
+            
+        print(f'트랙 정보')
+        for track in track_list:
+            track_name = track['name']
+            track_duration = track.get('duration', 0) 
+            track_rank = track.get('@attr', {}).get('rank', 1)
+            
+            #--------insert into track_tb--------
+            # exists
+                # return None
+            # not exists
+                # insert
+                # parameter: album_id, title, duration, track_rank
+                # return None
+            
+            #--------insert into artist_track_tb--------
+            # exists
+                # return None
+            # not exists
+                # insert
+                # parameter: artist_id, track_id
+                # return None
+            print(f'트랙명: {track_name}')
+            print(f'트랙길이: {track_duration}')
+            print(f'트랙순위: {track_rank}')
+            print(f'\n')
+            
+        
+        
 
 
 
