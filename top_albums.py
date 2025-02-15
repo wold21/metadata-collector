@@ -34,7 +34,7 @@ def getTopAlbums(artist_id, artist_name, mbid):
         'artist': mbid,
         'fmt': 'json',
     })
-    
+
     albums_info = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
         'artist': mbid,
         'limit': temp_data['release-group-count'],
@@ -126,36 +126,50 @@ def getTopAlbums(artist_id, artist_name, mbid):
         })
         
         if tracks_info and 'album' in tracks_info and 'tracks' in tracks_info['album']:
-            track_list = tracks_info['album']['tracks']['track']
-        
-        if not isinstance(track_list, list):
-            track_list = [track_list]
+            # track_list = tracks_info['album']['tracks']['track']       
             
-        print(f'트랙 정보')
-        for track in track_list:
-            track_name = track['name']
-            track_duration = track.get('duration', 0) 
-            track_rank = track.get('@attr', {}).get('rank', 1)
+ 
+            # ✅ 트랙이 없는 앨범 존재
+            # https://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key=a2540255f09a4e673d2adea41e633d10&format=json&limit=1&page=1
+            if 'album' in tracks_info and 'tracks' in tracks_info['album']:
+                track_list = tracks_info['album']['tracks']['track']
+                if not isinstance(track_list, list):
+                    track_list = [track_list]
+                print(f'트랙 정보')
+                for track in track_list:
+                    track_name = track['name']
+                    track_duration = track.get('duration', 0) 
+                    track_rank = track.get('@attr', {}).get('rank', 1)
+                    
+                    #--------insert into track_tb--------
+                    # exists
+                        # return None
+                    # not exists
+                        # insert
+                        # parameter: album_id, title, duration, track_rank
+                        # return None
+                    
+                    #--------insert into artist_track_tb--------
+                    # exists
+                        # return None
+                    # not exists
+                        # insert
+                        # parameter: artist_id, track_id
+                        # return None
+                    print(f'트랙명: {track_name}')
+                    print(f'트랙길이: {track_duration}')
+                    print(f'트랙순위: {track_rank}')
+                    print(f'\n')
+
+            else:
+                print(f'트랙없음!!!!!!!')
+
+
+
+
+
             
-            #--------insert into track_tb--------
-            # exists
-                # return None
-            # not exists
-                # insert
-                # parameter: album_id, title, duration, track_rank
-                # return None
-            
-            #--------insert into artist_track_tb--------
-            # exists
-                # return None
-            # not exists
-                # insert
-                # parameter: artist_id, track_id
-                # return None
-            print(f'트랙명: {track_name}')
-            print(f'트랙길이: {track_duration}')
-            print(f'트랙순위: {track_rank}')
-            print(f'\n')
+
             
         
         
