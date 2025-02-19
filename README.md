@@ -18,3 +18,38 @@ Type "help", "copyright", "credits" or "license" for more information.
 ## commit / push
 초기 셋팅 말고 작업 중에 pip install하여 다른 라이브러리를 설치했을 경우 작업 완료 후 `pip freeze > requirements.txt` 실행하여 라이브러리 목록 추출 후 해당 목록 반영하여 push 부탁.... (requirements 변경될 경우 기존 파일 `_x`로 버전 명시)
 
+
+
+## 데이터베이스 query 작성 Guide
+
+### 다량의 데이터를 삽입하는 테이블의 중복 체크
+
+1. SELECT 후 중복 체크하는 과정 없이 INSERT문에서 DB가 자체적으로 중복 방지하는 postgresql 함수 사용
+: ON CONFLICT DO NOTHING
+
+    * 단, UNIQUE 제약 조건은 기본적으로 NULL 값을 동일한 값으로 간주
+    따라서 Null 값 허용 X or 무조건 값이 들어가는 컬럼에 한에서 적용할 것
+    
+    해당되는 테이블     track_tb        (album_id, track_name)
+                    album_type_tb   (album_id, release_id, type_category)
+                    
+                    album_release_code  (code)
+                    genre_code          (code)
+                    
+
+    * 또한, 
+    컬럼들의 조합이 pk 가 되는 경우 unique 제약조건 없이 자동 적용
+    
+    해당되는 테이블     artist_genre_tb (artist_id, genre_id)
+                    artist_track_tb (artist_id, track_id)
+                    artist_album_tb (artist_id, album_id)
+
+
+2. SELECT 조회 후 INSERT
+
+    해당되는 테이블     artist_tb       (mbid, artist_name)
+                    album_tb        (title, release_date_origin)
+
+
+API or 관련 트랜젝션이 많을 경우 select 조회 후 Insert
+그 외 데이터의 양이 많을 경우, ON CONFLICT DO NOTHING 함수 사용함

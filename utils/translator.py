@@ -1,4 +1,5 @@
 from deep_translator import GoogleTranslator
+from utils.logging_config import logger
 
 def translate_to_korean(text):
     try:
@@ -18,5 +19,5 @@ def translate_to_korean(text):
             translator = GoogleTranslator(source='auto', target='ko')
             return translator.translate(text)
     except Exception as e:
-        print(f"Translation error: {str(e)}")
+        logger.error(f"Translation error: {str(e)}")
         return text

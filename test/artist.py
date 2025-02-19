@@ -1,15 +1,20 @@
-from shared_info import SharedInfo
+import sys
+import os
+
+# 프로젝트 루트 경로를 sys.path에 추가
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from shared_info import SharedInfo  
 from utils.logging_config import setup_logging, logger  # logger 객체도 직접 가져오기
-import top_artists
+import store_artist
 # APIKEY = "a2540255f09a4e673d2adea41e633d10"
 
 def start():
-    logger.info("애플리케이션 시작")  # 로그 확인용 메시지
-    top_artists.getTopArtists()
-
-
-if __name__ == "__main__":
     SharedInfo.set_api_key("a2540255f09a4e673d2adea41e633d10")
     SharedInfo.set_lastfm_base_url('https://ws.audioscrobbler.com/2.0/')
     SharedInfo.set_musicbrainz_base_url('https://musicbrainz.org/ws/2/')
-    start()
+    
+    logger.info("테스트 코드 시작")  # 로그 확인용 메시지
+    store_artist.insertArtistTxn('cold play', '')
+
+start()
