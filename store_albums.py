@@ -46,6 +46,7 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
 
     albums_info = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
         'artist': mbid,
+        'inc': 'genres',
         'limit': temp_data['release-group-count'],
         'fmt': 'json',
     })
@@ -53,7 +54,7 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
     logger.info(f"(2) 아티스트 앨범 List >> 아트스트명 : {artist_name} , 총 앨범 수 : {albums_info['release-group-count']}")
     with get_connection() as conn:  
         cnt = 0
-        for album in albums_info['release-groups']:
+        for album in albums_info.get('release-groups', []):
             try:
                 album_name = album['title']
                 album_relsase_code = album['primary-type'].lower()
@@ -65,7 +66,7 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
                 album_id = fetch_one(conn,  "SELECT id FROM album_tb WHERE title = %s AND release_date_origin = %s", (album_name, release_date_origin))
                 if album_id:
                     logger.info(f"\t 이미 존재하는 Album : {album_name}\n")    
-                    return
+                    continue
 
                 # insert DB
                 album_id = insertAlbum(conn, album_name, release_date, release_date_origin)
@@ -80,6 +81,22 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
                         secondary_album_type_arr.append(type_en)
                         insertAlbumType(conn, type_en, album_id, AlbumType.SECONDARY.value)
                 
+                # Step 8: 장르 정보 저장 (genres 데이터 처리 추가)
+                genres = album.get('genres', [])
+                if not genres:
+                    logger.warning(f"앨범 '{album.get('title')}'에 장르 정보가 없습니다 (album_id: {album_id})")
+                else:
+                    for genre in genres:
+                        genre_name = genre['name']
+
+                        # 장르 코드 삽입 및 id 획득
+                        genre_id = insertGenre(conn, genre_name)
+
+                        # 앨범-장르 관계 저장
+                        insertAlbumGenre(conn, album_id, genre_id)
+
+                    logger.info(f"앨범 장르 정보 저장 완료 (album_id: {album_id})")
+
                 cnt += 1
 
                 logger.info(f"\t{cnt}/{albums_info['release-group-count']} 앨범 정보")
@@ -89,7 +106,7 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
                 logger.info(f'\t발매일: {release_date}')
                 logger.info(f'\t발매일(가공전): {release_date_origin}\n')
 
-                insertAlbumTracksTxn(artist_name, album_name)
+                # insertAlbumTracksTxn(artist_name, album_name)
 
                 # TODO
                 # 앨범 이미지 다운로드 로직 추가. 
@@ -127,6 +144,31 @@ def insertArtistAlbum(conn, artist_id, album_id):
     execute_query(conn, query, (artist_id, album_id))
     logger.info(f"(2-3) [DB] >> 앨범-아티스트 데이터 삽입 완료 (album_id: {album_id}, artist_id: {artist_id}")
 
+
+def insertGenre(conn, code):
+    query = """
+        WITH ins AS (
+            INSERT INTO genre_code (code)
+            VALUES (%s)
+            ON CONFLICT (code) DO NOTHING
+            RETURNING id
+        )
+        SELECT id FROM ins
+        UNION ALL
+        SELECT id FROM genre_code WHERE code = %s
+        LIMIT 1
+    """
+    genre_id = insert_data(conn, query, (code, code))
+    return genre_id[0]
+
+
+def insertAlbumGenre(conn, album_id, genre_id):
+    query = """
+        INSERT INTO album_genre_tb (album_id, genre_id)
+        VALUES (%s, %s)
+        ON CONFLICT DO NOTHING
+    """
+    execute_query(conn, query, (album_id, genre_id))
 
 # 앨범에 대한 정보
 # https://musicbrainz.org/ws/2/release/acbb807b-4a1a-411a-a800-965a23955561?inc=aliases%2Bartist-credits%2Blabels%2Bdiscids%2Brecordings&fmt=json
