@@ -1,0 +1,21 @@
+# artist 추가 테스트 파일 (store_artist)
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from shared_info import SharedInfo  
+from utils.logging_config import setup_logging, logger  # logger 객체도 직접 가져오기
+import store_albums
+# APIKEY = "a2540255f09a4e673d2adea41e633d10"
+
+def start():
+    SharedInfo.set_api_key("a2540255f09a4e673d2adea41e633d10")
+    SharedInfo.set_lastfm_base_url('https://ws.audioscrobbler.com/2.0/')
+    SharedInfo.set_musicbrainz_base_url('https://musicbrainz.org/ws/2/')
+    
+    logger.info("테스트 코드 시작")  # 로그 확인용 메시지
+
+    # artist_id, artist_name, mbid
+    store_albums.insertArtistAlbumsTxn(104, 'aespa', 'b51c672b-85e0-48fe-8648-470a2422229f')
+
+start()
