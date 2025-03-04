@@ -8,7 +8,7 @@ DB_CONFIG = {
     "dbname": "onhz",
     "user": "onhz",
     "password": "onhz",
-    "host": "211.177.7.64",
+    "host": "220.116.96.179",
     "port": "5432"
 }
 
