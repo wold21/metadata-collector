@@ -1,7 +1,6 @@
+# artist 추가 테스트 파일 (store_artist)
 import sys
 import os
-
-# 프로젝트 루트 경로를 sys.path에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from shared_info import SharedInfo  
@@ -15,6 +14,6 @@ def start():
     SharedInfo.set_musicbrainz_base_url('https://musicbrainz.org/ws/2/')
     
     logger.info("테스트 코드 시작")  # 로그 확인용 메시지
-    store_artist.insertArtistTxn('cold play', '')
+    store_artist.insertArtistTxn('Tommy Richman')
 
 start()

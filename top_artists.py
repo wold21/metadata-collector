@@ -4,8 +4,9 @@ import store_albums
 from shared_info import SharedInfo
 from utils.logging_config import logger
 
-
+# TOP 100 artist 데이터 수집
 def getTopArtists():
+    
     # LIMIT = 1
     # TOTAL_PAGE = None
     # response_json = get(SharedInfo.get_lastfm_base_url(), params = {
@@ -22,7 +23,6 @@ def getTopArtists():
 
     LIMIT = 100
     try:
-        # for page in range(1, TOTAL_PAGE+1):
         response_json = get(SharedInfo.get_lastfm_base_url(), params = {
             'method': 'chart.gettopartists',
             'api_key': SharedInfo.get_api_key(),
@@ -33,9 +33,12 @@ def getTopArtists():
         cnt = 0
         for artist in response_json['artists']['artist']:
             cnt += 1
-            logger.info(f"\tTopArist 전체 {LIMIT} 중 {cnt} 번째 데이터 작업 시작")
-            artist_result = store_artist.insertArtistTxn(artist['name'], artist['mbid'])
-            album_result = store_albums.insertArtistAlbumsTxn(artist_result['artist_id'], artist_result['artist_name'], artist_result['artist_mbid'])
+            logger.info(f"\tTopArist 전체 {LIMIT} 중 {cnt} 번째 데이터 작업 시작, {artist['mbid']}")
+            if(cnt > 43):
+                artist_result = store_artist.insertArtistTxn(artist['name'], artist['mbid'])
+                print("artist_result", artist_result)
+                if artist_result:
+                    album_result = store_albums.insertArtistAlbumsTxn(artist_result['artist_mbid'])
     except Exception as e:
         logger.error(f"오류 발생: {e}\n")
 

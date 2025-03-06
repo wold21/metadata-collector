@@ -5,18 +5,36 @@ from utils.wikipedia import getWikiSummary
 from utils.logging_config import logger
 
 
-def insertArtistTxn(artist_name, mbid=None):
-    logger.info(f"아티스트 '{artist_name}' 데이터 조회 및 저장 시작")
+def insertArtistTxn(artist_name=None, mbid=None):
 
-    if not mbid:
+    logger.info(f"아티스트 '{artist_name}' 데이터 조회 및 저장 시작")
+    
+    if not mbid and not artist_name:
+        logger.warning("artist_name과 mbid 중 하나는 필수입니다.")
+        return
+
+    # mbid가 있는 경우, MBID로 아티스트 정보 조회 후 이름 재 세팅
+    if mbid:
+        response = get(SharedInfo.get_musicbrainz_base_url() + f"artist/{mbid}", params={
+            'inc': 'genres',
+            'fmt': 'json'
+        })
+        artist_info = response
+        artist_name = artist_info.get('name')
+
+        if not artist_name:
+            logger.warning(f"MBID '{mbid}'에 해당하는 아티스트 정보를 찾을 수 없습니다.")
+            return
+
+    else:
+        # artist_name만 있는 경우 이름으로 조회
         response = get(SharedInfo.get_musicbrainz_base_url() + "artist/", params={
             'query': f'artist:"{artist_name}"',
-            'limit': 5,  # 혹시 동일 이름 여러명일 수 있으니까
+            'limit': 5,
             'fmt': 'json'
         })
         artists = response.get('artists', [])
 
-        # 검색 결과에서 정확히 이름이 일치하는 아티스트만 선택
         artist_info = next((a for a in artists if a.get('name', '').lower() == artist_name.lower()), None)
 
         if not artist_info:
@@ -24,19 +42,14 @@ def insertArtistTxn(artist_name, mbid=None):
             return
 
         mbid = artist_info['id']
-    else:
-        # MBID 직접 조회 (기존 mbid 값이 있는 경우)
-        response = get(SharedInfo.get_musicbrainz_base_url() + f"artist/{mbid}", params={
-            'inc': 'genres',
-            'fmt': 'json'
-        })
-        artist_info = response
 
+    logger.info(f"아티스트 '{artist_name}' 데이터 조회 및 저장 시작 (MBID: {mbid})")
     try:
         with get_connection() as conn:
-            if fetch_one(conn, "SELECT id FROM artist_tb WHERE mbid = %s", (mbid,)):
+            artist_id = fetch_one(conn, "SELECT id FROM artist_tb WHERE mbid = %s", (mbid,))
+            if artist_id:
                 logger.info(f"이미 존재하는 아티스트: {artist_name} (MBID: {mbid})")
-                return
+                return {'artist_id': artist_id, 'artist_name': artist_name, 'artist_mbid': mbid}
 
             country = artist_info.get('country')
             bio = getWikiSummary(artist_name)
@@ -47,7 +60,7 @@ def insertArtistTxn(artist_name, mbid=None):
                 genre_id = insertGenre(conn, genre['name'])
                 insertArtistGenre(conn, artist_id, genre_id)
 
-            logger.info(f"아티스트 '{artist_name}' 데이터 저장 완료 (ID: {artist_id})")
+            logger.info(f"아티스트 '{artist_name}' 데이터 저장 완료 (ID: {artist_id} / MBID: {mbid})")
             return {'artist_id': artist_id, 'artist_name': artist_name, 'artist_mbid': mbid}
 
     except Exception as e:

@@ -1,7 +1,7 @@
 from shared_info import SharedInfo
 from utils.cal_date import parse_incomplete_date
 from utils.common_request import get
-from utils.database import get_connection, execute_query, fetch_one, fetch_all, insert_data
+from utils.database import get_connection, execute_query, fetch_one, fetch_one_dict, insert_data
 from utils.logging_config import logger
 from store_tracks import insertAlbumTracksTxn
 from enum import Enum
@@ -38,7 +38,7 @@ SECONDARY_ALBUM_TYPE_DICT = {
     'other': '기타'
 }
 
-def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
+def insertArtistAlbumsTxn(mbid):
     temp_data = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
         'artist': mbid,
         'fmt': 'json',
@@ -50,9 +50,17 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
         'limit': temp_data['release-group-count'],
         'fmt': 'json',
     })
-    
-    logger.info(f"(2) 아티스트 앨범 List >> 아트스트명 : {artist_name} , 총 앨범 수 : {albums_info['release-group-count']}")
+
     with get_connection() as conn:  
+        artist_info = fetch_one_dict(conn, "SELECT id, artist_name, country FROM artist_tb WHERE mbid = %s", (mbid,))
+        if not artist_info:
+            raise ValueError(f"아티스트 정보를 찾을 수 없습니다. mbid: {mbid}")
+
+        artist_name = artist_info['artist_name']
+        artist_country = artist_info['country']
+        
+        logger.info(f"(2) 아티스트 앨범 List >> 아트스트명 : {artist_name} , 총 앨범 수 : {albums_info['release-group-count']}")
+
         cnt = 0
         for album in albums_info.get('release-groups', []):
             try:
@@ -65,12 +73,11 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
                 # DB에서 기존 album_id 조회
                 album_id = fetch_one(conn,  "SELECT id FROM album_tb WHERE title = %s AND release_date_origin = %s", (album_name, release_date_origin))
                 if album_id:
-                    logger.info(f"\t 이미 존재하는 Album : {album_name}\n")    
+                    logger.warning(f"\t 이미 존재하는 Album : {album_name}\n")    
                     continue
 
                 # insert DB
                 album_id = insertAlbum(conn, album_name, release_date, release_date_origin)
-                insertArtistAlbum(conn, artist_id, album_id)
                 insertAlbumType(conn, album_relsase_code, album_id, AlbumType.PRIMARY.value)
 
                 secondary_album_type_arr = []
@@ -81,7 +88,7 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
                         secondary_album_type_arr.append(type_en)
                         insertAlbumType(conn, type_en, album_id, AlbumType.SECONDARY.value)
                 
-                # Step 8: 장르 정보 저장 (genres 데이터 처리 추가)
+                # 장르 정보 저장
                 genres = album.get('genres', [])
                 if not genres:
                     logger.warning(f"앨범 '{album.get('title')}'에 장르 정보가 없습니다 (album_id: {album_id})")
@@ -106,7 +113,37 @@ def insertArtistAlbumsTxn(artist_id, artist_name, mbid):
                 logger.info(f'\t발매일: {release_date}')
                 logger.info(f'\t발매일(가공전): {release_date_origin}\n')
 
-                # insertAlbumTracksTxn(artist_name, album_name)
+                # Release 리스트 조회
+                release_group_id = album['id']
+                releases_info = get(SharedInfo.get_musicbrainz_base_url() + f"release-group/{release_group_id}", params = {
+                    'inc': 'releases',
+                    'fmt': 'json',
+                })
+                releases = releases_info.get('releases', [])
+                releases.sort(key=lambda x: x.get('date', ''), reverse=True)
+
+                latest_release = None
+                for release in releases:
+                    release_status = release.get('status')
+                    release_country = release.get('country')
+                    release_date = release.get('date')
+
+                    if release_status == 'Official' and release_country == artist_country:
+                        latest_release = release
+                        break
+                    if release_status == 'Official':
+                        latest_release = release
+                    if release_country == artist_country:
+                        latest_release = release
+
+                if not latest_release and releases:
+                    latest_release = releases[0]
+
+                if not latest_release:
+                    continue
+    
+                # 트랙 리스트 조회
+                insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
 
                 # TODO
                 # 앨범 이미지 다운로드 로직 추가. 
@@ -133,16 +170,6 @@ def insertAlbumType(conn, album_release_code, album_id, category):
     """
     execute_query(conn, query, (album_id, category, album_release_code ))
     logger.info(f"(2-2) [DB] >> 앨범-타입 데이터 삽입 완료 (album_id: {album_id}, category: {category}, album_release_code: {album_release_code})")
-
-
-def insertArtistAlbum(conn, artist_id, album_id):
-    query = """
-        INSERT INTO artist_album_tb (artist_id, album_id)
-        VALUES (%s, %s)
-        ON CONFLICT DO NOTHING
-    """
-    execute_query(conn, query, (artist_id, album_id))
-    logger.info(f"(2-3) [DB] >> 앨범-아티스트 데이터 삽입 완료 (album_id: {album_id}, artist_id: {artist_id}")
 
 
 def insertGenre(conn, code):

@@ -15,7 +15,7 @@ def start():
     
     logger.info("테스트 코드 시작")  # 로그 확인용 메시지
 
-    # artist_id, artist_name, mbid
-    store_albums.insertArtistAlbumsTxn(104, 'aespa', 'b51c672b-85e0-48fe-8648-470a2422229f')
+    # mbid
+    store_albums.insertArtistAlbumsTxn('741a6c80-2d6e-4522-9de4-e070798a2d30')
 
 start()

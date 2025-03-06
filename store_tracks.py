@@ -3,67 +3,68 @@ from utils.cal_date import parse_incomplete_date
 from utils.common_request import get
 from utils.database import get_connection, execute_query, fetch_one, fetch_all, insert_data, fetch_one_dict
 from utils.logging_config import logger
+import store_artist
 
-def insertAlbumTracksTxn(artist_name, album_name):
-    
-    tracks_info = get(SharedInfo.get_lastfm_base_url(), params={
-        'method': 'album.getinfo',
-        'artist': artist_name,
-        'album': album_name,
-        'api_key': SharedInfo.get_api_key(),
-        'format': 'json'
+def insertAlbumTracksTxn(release_id, album_id, mbid):
+
+    # 트랙 리스트 조회
+    tracks_info = get(SharedInfo.get_musicbrainz_base_url() + f"release/{release_id}", params={
+        'inc': 'recordings',
+        'fmt': 'json'
     })
 
+    tracks = tracks_info.get('media', [{}])[0].get('tracks', [])
+    logger.info(f"(3) 트랙 List >> 앨범 ID : {album_id} , 총 트랙 수 : {len(tracks)}")
+
     with get_connection() as conn:  
-        # `artist_tb`에서 artist_id 가져오기
-        artist_query = "SELECT id as artist_id, artist_name, mbid FROM artist_tb WHERE artist_name = %s;"
-        artist_data = fetch_one_dict(conn, artist_query, (artist_name,))
-        if not artist_data:
-            logger.warning(f"아티스트 '{artist_name}'의 정보가 존재하지 않음.")
-            return
-        artist_id = artist_data['artist_id']
+        feat_artists = {}
+        for track in tracks:
+            track_name = track['title']
+            track_duration = track.get('recording', {}).get('length')  # Track length in ms
+            track_rank = track.get('position')
 
-        # `album_tb`에서 album_id 가져오기
-        album_query = "SELECT id as album_id FROM album_tb WHERE title = %s;"
-        album_data = fetch_one_dict(conn, album_query, (album_name,))
-        if not album_data:
-            logger.warning(f"앨범 '{album_name}'의 정보가 존재하지 않음.")
-            return
-        album_id = album_data['album_id']
+            track_id = insertTrack(conn, album_id, track_name, track_duration, track_rank)
+            
+            # track_id가 None인 경우 로그 찍고 다음 트랙으로 넘어가기
+            if not track_id:
+                logger.warning(f"\t 이미 존재하는 트랙 Album : album_id={album_id}, track_name={track_name}\n")    
+                continue
 
-        try:
-            if tracks_info and tracks_info.get('album', {}).get('tracks'):
-                # ✅ 트랙이 없는 앨범 존재
-                # https://ws.audioscrobbler.com/2.0/?method=chart.gettopartists&api_key=a2540255f09a4e673d2adea41e633d10&format=json&limit=1&page=1
-                if tracks_info.get('album', {}).get('tracks', {}).get('track', []):
+            # 트랙별 참여 아티스트 조회 및 저장
+            recording_id = track.get('recording', {}).get('id')
+            recording_info = get(SharedInfo.get_musicbrainz_base_url() + f"recording/{recording_id}", params={
+                'inc': 'artists',
+                'fmt': 'json'
+            })
 
-                    logger.info(f"(3) 트랙 List >> 아트스트명 : {artist_name} , 앨범명 : {album_name} , 총 앨범 수 : {len(tracks_info['album']['tracks'])}")
-                    track_list = tracks_info['album']['tracks']['track']
-                    if not isinstance(track_list, list):
-                        track_list = [track_list]
+            for artist_credit in recording_info.get('artist-credit', []):
+                feat_artist_mbid = artist_credit['artist']['id']
+                joinphrase = artist_credit.get('joinphrase', '')
 
-                    cnt = 0
-                    for track in track_list:
-                        track_name = track['name']
-                        track_duration = track.get('duration', 0) 
-                        track_rank = track.get('@attr', {}).get('rank', 1)
-                        
-                        cnt += 1
-                        logger.info(f"\t{cnt}/{len(tracks_info['album']['tracks']['track'])} 트랙 정보")
-                        logger.info(f'\t트랙명: {track_name}')
-                        logger.info(f'\t트랙길이: {track_duration}')
-                        logger.info(f'\t트랙순위: {track_rank}\n')
+                feat_artist_id = fetch_one(conn, "SELECT id FROM artist_tb WHERE mbid = %s", (feat_artist_mbid,))
 
-                        track_id = insertTrack(conn, album_id, track_name, track_duration, track_rank)
-                        if track_id:
-                            insertArtistTrack(conn, artist_id, track_id)
-                        else:
-                            logger.warning(f"이미 존재하는 트랙 : {track_name}\n")
-            else:
-                logger.warning(f"(3) 트랙 List \n\t앨범 '{album_name}'의 트랙이 없음\n")
-        except Exception as e:
-                logger.error(f"오류 발생 (트랙 데이터 처리 중) {artist_name}, {album_name}: {e}\n")
-    
+                if not feat_artist_id:
+                    feat_artist_id = store_artist.insertArtistTxn(mbid=feat_artist_mbid)["artist_id"]
+                    logger.info(f"DB에 피처링 아티스트 {feat_artist_mbid} 추가됨.")
+                else:
+                    feat_artist_id = feat_artist_id[0]
+
+
+                if feat_artist_mbid == mbid:
+                    joinphrase = "main"  # 메인 아티스트 role = "main"
+
+                # 피처링 가수 데이터 저장 (트랙-앨범 참여자 추가)
+                insertArtistTrack(conn, feat_artist_id, track_id, joinphrase)
+
+                # 중복 체크 후 앨범-아티스트 리스트에 추가
+                if feat_artist_id not in feat_artists:
+                    feat_artists[feat_artist_id] = joinphrase
+
+        logger.info(f"앨범-아티스트 저장할 데이터 (feat_artists) : {feat_artists}")
+        for feat_artist_id, joinphrase in feat_artists.items():
+            insertArtistAlbum(conn, feat_artist_id, album_id, joinphrase)
+
+    print(f"\n")
 
 
 def insertTrack(conn, album_id, track_name, track_duration, track_rank):
@@ -74,17 +75,26 @@ def insertTrack(conn, album_id, track_name, track_duration, track_rank):
         RETURNING id;
     """
     track_id = insert_data(conn, query, (album_id, track_name, track_duration, track_rank))
-    logger.info(f"(3-1) [DB] >> 트랙 데이터 삽입 완료 (track_id: {track_id})")
+    if track_id:
+        logger.info(f"(3-1) [DB] >> 트랙 데이터 삽입 완료 (track_id: {track_id} / track_name : {track_name})")
     return track_id[0] if track_id else None
 
 
-def insertArtistTrack(conn, artist_id, track_id):
+def insertArtistTrack(conn, artist_id, track_id, joinphrase):
     query = """
-        INSERT INTO artist_track_tb (artist_id, track_id)
-        VALUES (%s, %s)
+        INSERT INTO artist_track_tb (artist_id, track_id, artist_role)
+        VALUES (%s, %s, %s)
         ON CONFLICT DO NOTHING
     """
-    execute_query(conn, query, (artist_id, track_id))
+    execute_query(conn, query, (artist_id, track_id, joinphrase))
     logger.info(f"(3-2) [DB] >> 아티스트-트랙 관계 삽입 완료 (Artist ID: {artist_id}, Track ID: {track_id})")
 
 
+def insertArtistAlbum(conn, artist_id, album_id, joinphrase):
+    query = """
+        INSERT INTO artist_album_tb (artist_id, album_id, artist_role)
+        VALUES (%s, %s, %s)
+        ON CONFLICT DO NOTHING
+    """
+    execute_query(conn, query, (artist_id, album_id, joinphrase))
+    logger.info(f"(3-3) [DB] >> 아티스트-앨범 관계 삽입 완료 (Artist ID: {artist_id}, Album ID: {album_id})")

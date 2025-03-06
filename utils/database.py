@@ -44,8 +44,12 @@ def execute_query(conn, query, params=None, fetch_one=False, fetch_all=False, co
 
 
 def insert_data(conn, query, params):
-    """ INSERT 쿼리 실행 (중복 방지 ON CONFLICT 지원) """
-    return execute_query(conn, query, params, fetch_one=True, commit=True)
+    """ INSERT 쿼리 실행 (중복 방지 ON CONFLICT 지원) """   
+    # 만약 결과로 반환된 ID가 None이면, 쿼리 로그를 출력
+    result = execute_query(conn, query, params, fetch_one=True, commit=True)
+    if result is None:
+        logger.warning(f"insert return ID 없음 : {query} / 파라미터: {params}")
+    return result
 
 
 def fetch_one(conn, query, params):
