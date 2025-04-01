@@ -5,6 +5,47 @@ from utils.database import get_connection, execute_query, fetch_one, fetch_all, 
 from utils.logging_config import logger
 import store_artist
 
+NORMALIZED_JOINPHRASE = {
+    "and": "and",
+    ", and": "and", 
+    ",": "and", 
+    "&": "and", 
+    "+": "and",
+    "x": "and",
+    "\u00d7": "and",
+    
+    "with": "with",
+    "duet with": "with",
+    "meets": "with",
+
+    "feat": "feat",
+    "feat.": "feat",
+    "feat:": "feat",
+    "featuring": "feat",
+    "ft": "feat",
+    "ft.": "feat",
+    "f/": "feat",
+    ") feat.": "feat",
+    ", feat.": "feat",
+    "- feat.": "feat",
+    "presentan": "feat",
+    "presents": "feat",
+    "starring": "feat",
+    "sung by": "feat",
+    "/": "feat",
+    ";": "feat",
+    "(": "feat",
+    ")": "feat",
+
+    "vs.": "vs",
+    "vs": "vs",
+
+    "main": "main"
+}
+
+def normalize_joinphrase(joinphrase):
+    return NORMALIZED_JOINPHRASE.get(joinphrase.strip().lower(), "feat")
+
 def insertAlbumTracksTxn(release_id, album_id, mbid):
 
     # 트랙 리스트 조회
@@ -39,8 +80,6 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
 
             for artist_credit in recording_info.get('artist-credit', []):
                 feat_artist_mbid = artist_credit['artist']['id']
-                joinphrase = artist_credit.get('joinphrase', '')
-
                 feat_artist_id = fetch_one(conn, "SELECT id FROM artist_tb WHERE mbid = %s", (feat_artist_mbid,))
 
                 if not feat_artist_id:
@@ -53,6 +92,8 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
                 if feat_artist_mbid == mbid:
                     joinphrase = "main"  # 메인 아티스트 role = "main"
 
+                joinphrase = normalize_joinphrase(artist_credit.get('joinphrase', ''))
+                logger.info(f"피처링 joinphrase 정규화 전 {artist_credit.get('joinphrase', '').strip().lower()} /  정규화 후 {joinphrase}")
                 # 피처링 가수 데이터 저장 (트랙-앨범 참여자 추가)
                 insertArtistTrack(conn, feat_artist_id, track_id, joinphrase)
 
