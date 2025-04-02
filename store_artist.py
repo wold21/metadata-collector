@@ -16,7 +16,7 @@ def insertArtistTxn(artist_name=None, mbid=None):
     # mbid가 있는 경우, MBID로 아티스트 정보 조회 후 이름 재 세팅
     if mbid:
         response = get(SharedInfo.get_musicbrainz_base_url() + f"artist/{mbid}", params={
-            'inc': 'genres',
+            'inc': 'genres+aliases',
             'fmt': 'json'
         })
         artist_info = response
@@ -53,8 +53,12 @@ def insertArtistTxn(artist_name=None, mbid=None):
 
             country = artist_info.get('country')
             bio = getWikiSummary(artist_name)
+            
+            alias_names = {alias['name'].strip() for alias in artist_info.get('aliases', []) if 'name' in alias}
+            search_vector = " ".join(sorted({artist_name.strip()} | alias_names))
+            print(search_vector)
 
-            artist_id = insertArtist(conn, artist_name, mbid, country, bio)
+            artist_id = insertArtist(conn, artist_name, mbid, country, bio, search_vector)
 
             for genre in artist_info.get('genres', []):
                 genre_id = insertGenre(conn, genre['name'])
@@ -67,16 +71,15 @@ def insertArtistTxn(artist_name=None, mbid=None):
         logger.error(f"오류 발생 (아티스트 데이터 처리 중) : {e}")
 
 
-def insertArtist(conn, artist_name, mbid, country, bio):
+def insertArtist(conn, artist_name, mbid, country, bio, search_vector):
     query = """
-        INSERT INTO artist_tb (artist_name, mbid, country, bio)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO artist_tb (artist_name, mbid, country, bio, search_vector)
+        VALUES (%s, %s, %s, %s, to_tsvector(%s))
         RETURNING id
     """
-    artist_id = insert_data(conn, query, (artist_name, mbid, country, bio))
+    artist_id = insert_data(conn, query, (artist_name, mbid, country, bio, search_vector))
     logger.info(f"아티스트 데이터 삽입 완료 (artist_id: {artist_id[0]})")
     return artist_id[0]
-
 
 def insertGenre(conn, code):
     query = """
