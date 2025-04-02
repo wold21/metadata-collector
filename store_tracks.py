@@ -36,6 +36,7 @@ NORMALIZED_JOINPHRASE = {
     ";": "Feat",
     "(": "Feat",
     ")": "Feat",
+    "": "Feat",
 
     "vs.": "Vs",
     "vs": "Vs",
@@ -44,7 +45,13 @@ NORMALIZED_JOINPHRASE = {
 }
 
 def normalize_joinphrase(joinphrase):
-    return NORMALIZED_JOINPHRASE.get(joinphrase.strip().lower(), "feat")
+    normalized = NORMALIZED_JOINPHRASE.get(joinphrase.strip().lower())
+
+    if normalized is None:
+        logger.warning(f"⚠️ 미등록 joinphrase 발견: '{joinphrase.strip().lower()}'")  
+        return "Feat"
+
+    return normalized
 
 def insertAlbumTracksTxn(release_id, album_id, mbid):
 
@@ -93,7 +100,6 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
                     joinphrase = "main"  # 메인 아티스트 role = "main"
 
                 joinphrase = normalize_joinphrase(artist_credit.get('joinphrase', ''))
-                logger.info(f"피처링 joinphrase 정규화 전 {artist_credit.get('joinphrase', '').strip().lower()} /  정규화 후 {joinphrase}")
                 # 피처링 가수 데이터 저장 (트랙-앨범 참여자 추가)
                 insertArtistTrack(conn, feat_artist_id, track_id, joinphrase)
 
