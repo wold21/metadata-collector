@@ -53,3 +53,14 @@ Type "help", "copyright", "credits" or "license" for more information.
 
 API or 관련 트랜젝션이 많을 경우 select 조회 후 Insert
 그 외 데이터의 양이 많을 경우, ON CONFLICT DO NOTHING 함수 사용함
+
+
+# 데이터 적재 실행 방법
+python main.py --mode top_artists  
+
+python main.py --mode country --country "Korea"
+
+python main.py --mode artist --name "BTS"
+python main.py --mode artist --mbid "b6b21b0c-a706-4b46-a929-bd4d21b06cad"
+
+python main.py --mode album --mbid "b6b21b0c-a706-4b46-a929-bd4d21b06cad"
