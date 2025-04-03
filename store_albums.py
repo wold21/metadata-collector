@@ -39,17 +39,39 @@ SECONDARY_ALBUM_TYPE_DICT = {
 }
 
 def insertArtistAlbumsTxn(mbid):
-    temp_data = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
-        'artist': mbid,
-        'fmt': 'json',
-    })
+    base_url = SharedInfo.get_musicbrainz_base_url() + "release-group/"
+    limit = 100  # MusicBrainz API는 limit 최대 100
 
-    albums_info = get(SharedInfo.get_musicbrainz_base_url() + "release-group/", params = {
+    # 첫 요청: 전체 앨범 개수 + 첫 100개 데이터 가져오기
+    first_response = get(base_url, params={
         'artist': mbid,
         'inc': 'genres',
-        'limit': temp_data['release-group-count'],
-        'fmt': 'json',
+        'limit': limit,
+        'fmt': 'json'
     })
+
+    total_albums = first_response.get('release-group-count', 0)
+    albums = first_response.get("release-groups", [])
+    
+    logger.info(f"총 {total_albums}개의 앨범 발견")
+
+    if total_albums > limit:
+        offset = limit
+
+        while offset < total_albums:
+            response = get(base_url, params={
+                'artist': mbid,
+                'inc': 'genres',
+                'limit': limit,
+                'offset': offset,
+                'fmt': 'json',
+            })
+            if "release-groups" in response:
+                albums.extend(response["release-groups"])
+
+            offset += limit 
+
+    albums_info = {"release-groups": albums, "release-group-count": total_albums}
 
     with get_connection() as conn:  
         artist_info = fetch_one_dict(conn, "SELECT id, artist_name, country FROM artist_tb WHERE mbid = %s", (mbid,))
