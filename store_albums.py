@@ -86,6 +86,8 @@ def insertArtistAlbumsTxn(mbid):
         cnt = 0
         for album in albums_info.get('release-groups', []):
             try:
+                cnt += 1
+
                 album_name = album['title']
                 album_relsase_code = album['primary-type'].lower()
                 # album_relsase_name = PRIMARY_ALBUM_TYPE_DICT.get(album_relsase_code, '기타')
@@ -98,8 +100,11 @@ def insertArtistAlbumsTxn(mbid):
                     logger.warning(f"\t 이미 존재하는 Album : {album_name}\n")    
                     continue
 
+                release_groups_id = album['id']
+                album_image = get_album_images(release_groups_id)
+
                 # insert DB
-                album_id = insertAlbum(conn, album_name, release_date, release_date_origin)
+                album_id = insertAlbum(conn, album_name, release_date, release_date_origin, album_image, release_groups_id)
                 insertAlbumType(conn, album_relsase_code, album_id, AlbumType.PRIMARY.value)
 
                 secondary_album_type_arr = []
@@ -126,7 +131,6 @@ def insertArtistAlbumsTxn(mbid):
 
                     logger.info(f"앨범 장르 정보 저장 완료 (album_id: {album_id})")
 
-                cnt += 1
 
                 logger.info(f"\t{cnt}/{albums_info['release-group-count']} 앨범 정보")
                 logger.info(f'\t앨범명: {album_name}')
@@ -165,21 +169,44 @@ def insertArtistAlbumsTxn(mbid):
                     continue
     
                 # 트랙 리스트 조회
-                insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
+                # insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
 
                 # TODO
                 # 앨범 이미지 다운로드 로직 추가. 
             except Exception as e:
                     logger.error(f"오류 발생 (앨범 데이터 처리 중) {artist_name} : {e}\n")
 
+
+
+def get_album_images(mb_release_group_id):
+    """TheAudioDB API를 사용하여 앨범 이미지 가져오기"""
+    try:
+        response = get(SharedInfo.get_theaudiodb_base_url() + SharedInfo.get_theaudiodb_api_key() + f"/album-mb.php",
+            params={"i": mb_release_group_id}
+        )
+        if not response:  
+            logger.warning(f"[TheAudioDB] 응답 없음: {mb_release_group_id}")
+            return None
+
+        if "album" in response and response["album"]:
+            album_image = response["album"][0].get("strAlbumThumb")
+            if album_image:
+                logger.info(f"[TheAudioDB] 앨범 이미지 URL: {album_image}")
+                return album_image
         
-def insertAlbum(conn, title, release_date, release_date_origin):
+        return None
+
+    except Exception as e:
+        logger.error(f"[TheAudioDB] 요청 오류: {e}")
+        return None
+    
+def insertAlbum(conn, title, release_date, release_date_origin, cover_path, mbid):
     query = """
-        INSERT INTO album_tb (title, release_date, release_date_origin)
-        VALUES (%s, %s, %s)
+        INSERT INTO album_tb (title, release_date, release_date_origin, cover_path, mbid)
+        VALUES (%s, %s, %s, %s, %s)
         RETURNING id
     """
-    album_id = insert_data(conn, query, (title, release_date, release_date_origin))
+    album_id = insert_data(conn, query, (title, release_date, release_date_origin, cover_path, mbid))
     logger.info(f"(2-1) [DB] >> 앨범 데이터 삽입 완료 (album_id: {album_id}, title: {title})")
     return album_id[0] if album_id else None
 

@@ -56,11 +56,21 @@ API or 관련 트랜젝션이 많을 경우 select 조회 후 Insert
 
 
 # 데이터 적재 실행 방법
-python main.py --mode top_artists  
 
-python main.py --mode country --country "Korea"
+```sh
+# 1.TOP 아티스트 데이터 적재
+python main.py --mode top_artists --limit 50
 
+# 2. 국가별 데이터 적재
+python main.py --mode country --country "Korea" --limit 50
+
+# 3. 아티스트 데이터 적재
+## 아티스트명으로 적재
 python main.py --mode artist --name "BTS"
+## MBID로 적재
 python main.py --mode artist --mbid "b6b21b0c-a706-4b46-a929-bd4d21b06cad"
 
+# 4. 특정 아티스트의 앨범/트랙 데이터 적재
 python main.py --mode album --mbid "b6b21b0c-a706-4b46-a929-bd4d21b06cad"
+
+```
