@@ -100,6 +100,7 @@ def insertArtistAlbumsTxn(mbid):
                     logger.warning(f"\t 이미 존재하는 Album : {album_name}\n")    
                     continue
 
+                # 앨범 이미지 다운로드 로직 추가. 
                 release_groups_id = album['id']
                 album_image = get_album_images(release_groups_id)
 
@@ -169,10 +170,8 @@ def insertArtistAlbumsTxn(mbid):
                     continue
     
                 # 트랙 리스트 조회
-                # insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
+                insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
 
-                # TODO
-                # 앨범 이미지 다운로드 로직 추가. 
             except Exception as e:
                     logger.error(f"오류 발생 (앨범 데이터 처리 중) {artist_name} : {e}\n")
 
