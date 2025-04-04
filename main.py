@@ -17,7 +17,7 @@ def start(mode, artist_name=None, artist_mbid=None, country=None, limit=50):
     logger.info(f"애플리케이션 실행 (mode: {mode}, name: {artist_name}, mbid: {artist_mbid}, country: {country}, limit: {limit})")
 
     if mode == "top_artists":
-        top_artists.saveMusicData(limit)
+        top_artists.saveMusicData(country, limit)
 
     elif mode == "country":
         if not country:

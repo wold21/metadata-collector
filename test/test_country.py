@@ -13,6 +13,6 @@ def start():
     SharedInfo.set_musicbrainz_base_url('https://musicbrainz.org/ws/2/')
     
     logger.info("테스트 코드 시작")  # 로그 확인용 메시지
-    country.saveMusicData('Korea', 10)
+    country.saveMusicData('Korea, Republic of', 10)
 
 start()
