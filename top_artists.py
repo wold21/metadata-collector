@@ -25,7 +25,7 @@ def saveMusicData(limit=50):
         logger.info(f"▶ top artist 데이터 조회 시작...")
         response_json = get(SharedInfo.get_lastfm_base_url(), params = {
             'method': 'chart.gettopartists',
-            'api_key': SharedInfo.get_api_key(),
+            'api_key': SharedInfo.get_lastfm_api_key(),
             'format': 'json',
             'limit': limit,
             'page': 1
