@@ -7,7 +7,7 @@ import argparse
 from shared_info import SharedInfo
 from utils.logging_config import setup_logging, logger
 import top_artists
-import country
+import store_country
 import store_artist
 import store_albums
 
@@ -17,13 +17,13 @@ def start(mode, artist_name=None, artist_mbid=None, country=None, limit=50):
     logger.info(f"애플리케이션 실행 (mode: {mode}, name: {artist_name}, mbid: {artist_mbid}, country: {country}, limit: {limit})")
 
     if mode == "top_artists":
-        top_artists.saveMusicData(country, limit)
+        top_artists.saveMusicData(limit)
 
     elif mode == "country":
         if not country:
             logger.error("국가명을 입력해야 합니다. 예: --mode country --country 'Korea'")
             return
-        country.saveMusicData(country, limit)
+        store_country.saveMusicData(country, limit)
 
     elif mode == "artist":
         if artist_name or artist_mbid:
