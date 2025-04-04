@@ -56,9 +56,11 @@ def insertArtistTxn(artist_name=None, mbid=None):
             
             alias_names = {alias['name'].strip() for alias in artist_info.get('aliases', []) if 'name' in alias}
             search_vector = " ".join(sorted({artist_name.strip()} | alias_names))
-            print(search_vector)
 
-            artist_id = insertArtist(conn, artist_name, mbid, country, bio, search_vector)
+            # 아티스트 이미지 다운로드 로직 추가. 
+            profile_path = get_artist_image(mbid)
+
+            artist_id = insertArtist(conn, artist_name, mbid, country, bio, search_vector, profile_path)
 
             for genre in artist_info.get('genres', []):
                 genre_id = insertGenre(conn, genre['name'])
@@ -71,13 +73,32 @@ def insertArtistTxn(artist_name=None, mbid=None):
         logger.error(f"오류 발생 (아티스트 데이터 처리 중) : {e}")
 
 
-def insertArtist(conn, artist_name, mbid, country, bio, search_vector):
+def get_artist_image(mbid):
+    """TheAudioDB API를 사용해 아티스트 이미지 가져오기"""
+    try:
+        response = get(SharedInfo.get_theaudiodb_base_url() + SharedInfo.get_theaudiodb_api_key() + "/artist-mb.php",
+            params={"i": mbid}
+        )
+        if not response:  
+            logger.warning(f"[TheAudioDB] 응답 없음: {mbid}")
+            return None
+        if response and "artists" in response and response["artists"]:
+            artist_image = response["artists"][0].get("strArtistThumb")
+            if artist_image:
+                logger.info(f"[TheAudioDB] 아티스트 이미지 URL: {artist_image}")
+                return artist_image
+        return None
+    except Exception as e:
+        logger.warning(f"TheAudioDB 이미지 조회 실패 (MBID: {mbid}): {e}")
+        return None
+
+def insertArtist(conn, artist_name, mbid, country, bio, search_vector, profile_path):
     query = """
-        INSERT INTO artist_tb (artist_name, mbid, country, bio, search_vector)
-        VALUES (%s, %s, %s, %s, to_tsvector(%s))
+        INSERT INTO artist_tb (artist_name, mbid, country, bio, search_vector, profile_path)
+        VALUES (%s, %s, %s, %s, to_tsvector(%s), %s)
         RETURNING id
     """
-    artist_id = insert_data(conn, query, (artist_name, mbid, country, bio, search_vector))
+    artist_id = insert_data(conn, query, (artist_name, mbid, country, bio, search_vector, profile_path))
     logger.info(f"아티스트 데이터 삽입 완료 (artist_id: {artist_id[0]})")
     return artist_id[0]
 

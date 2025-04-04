@@ -1,3 +1,4 @@
+# 아티스트 앨범 목록을 조회 후 앨범 이미지를 가져오는 테스트 코드
 import sys
 import os
 import json

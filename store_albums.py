@@ -102,7 +102,7 @@ def insertArtistAlbumsTxn(mbid):
 
                 # 앨범 이미지 다운로드 로직 추가. 
                 release_groups_id = album['id']
-                album_image = get_album_images(release_groups_id)
+                album_image = get_album_image(release_groups_id)
 
                 # insert DB
                 album_id = insertAlbum(conn, album_name, release_date, release_date_origin, album_image, release_groups_id)
@@ -177,7 +177,7 @@ def insertArtistAlbumsTxn(mbid):
 
 
 
-def get_album_images(mb_release_group_id):
+def get_album_image(mb_release_group_id):
     """TheAudioDB API를 사용하여 앨범 이미지 가져오기"""
     try:
         response = get(SharedInfo.get_theaudiodb_base_url() + SharedInfo.get_theaudiodb_api_key() + f"/album-mb.php",
@@ -186,18 +186,16 @@ def get_album_images(mb_release_group_id):
         if not response:  
             logger.warning(f"[TheAudioDB] 응답 없음: {mb_release_group_id}")
             return None
-
         if "album" in response and response["album"]:
             album_image = response["album"][0].get("strAlbumThumb")
             if album_image:
                 logger.info(f"[TheAudioDB] 앨범 이미지 URL: {album_image}")
                 return album_image
-        
         return None
-
     except Exception as e:
-        logger.error(f"[TheAudioDB] 요청 오류: {e}")
+        logger.warning(f"TheAudioDB 이미지 조회 실패 (MBID: {mb_release_group_id}): {e}")
         return None
+    
     
 def insertAlbum(conn, title, release_date, release_date_origin, cover_path, mbid):
     query = """

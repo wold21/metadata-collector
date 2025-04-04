@@ -11,8 +11,10 @@ def start():
     SharedInfo.set_lastfm_api_key("a2540255f09a4e673d2adea41e633d10")
     SharedInfo.set_lastfm_base_url('https://ws.audioscrobbler.com/2.0/')
     SharedInfo.set_musicbrainz_base_url('https://musicbrainz.org/ws/2/')
+    SharedInfo.set_theaudiodb_base_url('https://www.theaudiodb.com/api/v1/json/')
+    SharedInfo.set_theaudiodb_api_key('523532')
     
     logger.info("테스트 코드 시작")  # 로그 확인용 메시지
-    store_artist.insertArtistTxn("R. Stevie Moore")
+    store_artist.insertArtistTxn("10CM")
 
 start()
