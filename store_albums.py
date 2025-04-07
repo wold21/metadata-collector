@@ -37,6 +37,16 @@ SECONDARY_ALBUM_TYPE_DICT = {
     'spokenword' : '스포큰워드',
     'other': '기타'
 }
+def log_album_info(cnt, total, album_name, release_type, secondary_types, release_date, release_date_origin, reason=None):
+    logger.info(f"\t{cnt}/{total} 앨범 정보")
+    if reason:
+        logger.warning(f"\t앨범 insert 생략")
+        logger.warning(f"\t이유: {reason}")
+    logger.info(f'\t앨범명: {album_name}')
+    logger.info(f'\t발매타입: {release_type}')
+    logger.info(f'\t앨범작업타입: {secondary_types}')
+    logger.info(f'\t발매일: {release_date}')
+    logger.info(f'\t발매일(가공전): {release_date_origin}\n')
 
 def insertArtistAlbumsTxn(mbid):
     base_url = SharedInfo.get_musicbrainz_base_url() + "release-group/"
@@ -72,6 +82,7 @@ def insertArtistAlbumsTxn(mbid):
             offset += limit 
 
     albums_info = {"release-groups": albums, "release-group-count": total_albums}
+    inserted_album_count = 0
 
     with get_connection() as conn:  
         artist_info = fetch_one_dict(conn, "SELECT id, artist_name, country FROM artist_tb WHERE mbid = %s", (mbid,))
@@ -90,10 +101,15 @@ def insertArtistAlbumsTxn(mbid):
 
                 album_name = album['title']
                 album_relsase_code = album['primary-type'].lower()
-                # album_relsase_name = PRIMARY_ALBUM_TYPE_DICT.get(album_relsase_code, '기타')
+                
                 release_date = parse_incomplete_date(album.get('first-release-date', ''))
                 release_date_origin = album.get('first-release-date', '')
-
+                release_groups_id = album['id']
+                
+                if not release_date_origin:
+                    log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "release_date_origin 없음")
+                    continue
+                
                 # DB에서 기존 album_id 조회
                 album_id = fetch_one(conn,  "SELECT id FROM album_tb WHERE title = %s AND release_date_origin = %s", (album_name, release_date_origin))
                 if album_id:
@@ -101,10 +117,14 @@ def insertArtistAlbumsTxn(mbid):
                     continue
 
                 # 앨범 이미지 다운로드 로직 추가. 
-                release_groups_id = album['id']
                 album_image = get_album_image(release_groups_id)
 
+                if not album_image:
+                    log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "앨범 이미지 없음")
+                    continue
+
                 # insert DB
+                inserted_album_count += 1 
                 album_id = insertAlbum(conn, album_name, release_date, release_date_origin, album_image, release_groups_id)
                 insertAlbumType(conn, album_relsase_code, album_id, AlbumType.PRIMARY.value)
 
@@ -123,22 +143,13 @@ def insertArtistAlbumsTxn(mbid):
                 else:
                     for genre in genres:
                         genre_name = genre['name']
-
                         # 장르 코드 삽입 및 id 획득
                         genre_id = insertGenre(conn, genre_name)
-
                         # 앨범-장르 관계 저장
                         insertAlbumGenre(conn, album_id, genre_id)
 
-                    logger.info(f"앨범 장르 정보 저장 완료 (album_id: {album_id})")
+                log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin)
 
-
-                logger.info(f"\t{cnt}/{albums_info['release-group-count']} 앨범 정보")
-                logger.info(f'\t앨범명: {album_name}')
-                logger.info(f'\t발매타입: {album_relsase_code}')
-                logger.info(f'\t앨범작업타입: {secondary_album_type_arr}')
-                logger.info(f'\t발매일: {release_date}')
-                logger.info(f'\t발매일(가공전): {release_date_origin}\n')
 
                 # Release 리스트 조회
                 release_group_id = album['id']
@@ -175,6 +186,7 @@ def insertArtistAlbumsTxn(mbid):
             except Exception as e:
                     logger.error(f"오류 발생 (앨범 데이터 처리 중) {artist_name} : {e}\n")
 
+        logger.info(f"[결과] 총 {albums_info['release-group-count']}개 중 {inserted_album_count}개 앨범 insert 완료")
 
 
 def get_album_image(mb_release_group_id):
