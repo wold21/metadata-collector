@@ -119,9 +119,9 @@ def insertArtistAlbumsTxn(mbid):
                 # 앨범 이미지 다운로드 로직 추가. 
                 album_image = get_album_image(release_groups_id)
 
-                if not album_image:
-                    log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "앨범 이미지 없음")
-                    continue
+                # if not album_image:
+                    # log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "앨범 이미지 없음")
+                    # continue
 
                 # insert DB
                 inserted_album_count += 1 
@@ -186,7 +186,7 @@ def insertArtistAlbumsTxn(mbid):
             except Exception as e:
                     logger.error(f"오류 발생 (앨범 데이터 처리 중) {artist_name} : {e}\n")
 
-        logger.info(f"[결과] 총 {albums_info['release-group-count']}개 중 {inserted_album_count}개 앨범 insert 완료")
+        logger.info(f"[앨범 저장 결과] 총 {albums_info['release-group-count']}개 중 {inserted_album_count}개 앨범 insert 완료")
 
 
 def get_album_image(mb_release_group_id):
