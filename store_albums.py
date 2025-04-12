@@ -19,8 +19,6 @@ PRIMARY_ALBUM_TYPE_DICT = {
     'other': '기타'
 }
 SECONDARY_ALBUM_TYPE_DICT = {
-    'audiobook' : '오디오북',
-    'audio drama' : '오디오 드라마',
     'compilation' : '컴필레이션',
     'demo': '데모',
     'dj' : '디제이',
@@ -34,9 +32,10 @@ SECONDARY_ALBUM_TYPE_DICT = {
     'mixtape/street': '믹스테잎/스트릿',
     'remix' : '리믹스',
     'soundtrack' : '사운드트랙',
-    'spokenword' : '스포큰워드',
-    'other': '기타'
 }
+# 제외된 작업타입 (기타, 스포큰워드, 방송, 오디오북, 오디오 드라마, 부트랙)
+EXCLUDED_SECONDARY_TYPE_DICT = {'other', 'spokenword', 'broadcast', 'audiobook', 'audio drama', 'bootleg'}
+
 def log_album_info(cnt, total, album_name, release_type, secondary_types, release_date, release_date_origin, reason=None):
     logger.info(f"\t{cnt}/{total} 앨범 정보")
     if reason:
@@ -110,6 +109,11 @@ def insertArtistAlbumsTxn(mbid):
                     log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "release_date_origin 없음")
                     continue
                 
+                if 'secondary-types' in album:
+                    if any(type_.lower() in EXCLUDED_SECONDARY_TYPE_DICT for type_ in album['secondary-types']):
+                        log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "제외된 secondary type 포함")
+                        continue
+
                 # DB에서 기존 album_id 조회
                 album_id = fetch_one(conn,  "SELECT id FROM album_tb WHERE title = %s AND release_date_origin = %s", (album_name, release_date_origin))
                 if album_id:
@@ -128,12 +132,9 @@ def insertArtistAlbumsTxn(mbid):
                 album_id = insertAlbum(conn, album_name, release_date, release_date_origin, album_image, release_groups_id)
                 insertAlbumType(conn, album_relsase_code, album_id, AlbumType.PRIMARY.value)
 
-                secondary_album_type_arr = []
-                # if secondary type exists
                 if 'secondary-types' in album:
                     for type_str in album['secondary-types']:
                         type_en = type_str.lower()
-                        secondary_album_type_arr.append(type_en)
                         insertAlbumType(conn, type_en, album_id, AlbumType.SECONDARY.value)
                 
                 # 장르 정보 저장
