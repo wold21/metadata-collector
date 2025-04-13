@@ -25,13 +25,14 @@ def execute_query(conn, query, params=None, fetch_one=False, fetch_all=False, co
     try:
         cur = conn.cursor()
         cur.execute(query, params or ())
-        
+        affected_rows = cur.rowcount 
+
         if fetch_one:
             result = cur.fetchone()
         elif fetch_all:
             result = cur.fetchall()
         else:
-            result = None
+            result = affected_rows 
         
         if commit:
             conn.commit()

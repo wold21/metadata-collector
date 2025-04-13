@@ -188,6 +188,7 @@ def insertArtistAlbumsTxn(mbid):
                     logger.error(f"오류 발생 (앨범 데이터 처리 중) {artist_name} : {e}\n")
 
         logger.info(f"[앨범 저장 결과] 총 {albums_info['release-group-count']}개 중 {inserted_album_count}개 앨범 insert 완료")
+        update_representative_covers(mbid)
 
 
 def get_album_image(mb_release_group_id):
@@ -256,8 +257,35 @@ def insertAlbumGenre(conn, album_id, genre_id):
     """
     execute_query(conn, query, (album_id, genre_id))
 
-# 앨범에 대한 정보
-# https://musicbrainz.org/ws/2/release/acbb807b-4a1a-411a-a800-965a23955561?inc=aliases%2Bartist-credits%2Blabels%2Bdiscids%2Brecordings&fmt=json
 
-# 아티스트기준 앨범 정보 조회 후 해당 앨범 mbid로 조회
-# musicbrainz의 mbid와 lastfm의 mbid가 상통함
+def update_representative_covers(mbid):
+    query = """
+        WITH representative_cover AS (
+            SELECT 
+                TRIM(SPLIT_PART(at.title, '(', 1)) AS base_title,
+                at.cover_path
+            FROM album_tb at
+            JOIN artist_album_tb aat ON at.id = aat.album_id
+            JOIN artist_tb ar ON ar.id = aat.artist_id
+            WHERE at.cover_path IS NOT NULL AND ar.mbid = %s
+        ),
+        target_albums AS (
+            SELECT 
+                at.id,
+                TRIM(SPLIT_PART(at.title, '(', 1)) AS base_title
+            FROM album_tb at
+            JOIN artist_album_tb aat ON at.id = aat.album_id
+            JOIN artist_tb ar ON ar.id = aat.artist_id
+            WHERE at.cover_path IS NULL AND ar.mbid = %s
+        )
+        UPDATE album_tb target
+        SET cover_path = rep.cover_path
+        FROM representative_cover rep
+        JOIN target_albums ta ON ta.base_title = rep.base_title
+        WHERE target.id = ta.id;
+
+    """
+
+    with get_connection() as conn:
+        updated_rows = execute_query(conn, query, (mbid, mbid))
+        logger.info(f"[DB] >> 대표 이미지 없는 앨범들의 cover_path {updated_rows}건 업데이트 완료 (artist mbid: {mbid})")
