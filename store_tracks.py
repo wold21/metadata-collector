@@ -39,9 +39,7 @@ NORMALIZED_JOINPHRASE = {
     "": "Feat",
 
     "vs.": "Vs",
-    "vs": "Vs",
-
-    "main": "Main"
+    "vs": "Vs"
 }
 
 def normalize_joinphrase(joinphrase):
@@ -97,9 +95,9 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
 
 
                 if feat_artist_mbid == mbid:
-                    joinphrase = "main"  # 메인 아티스트 role = "main"
-
-                joinphrase = normalize_joinphrase(artist_credit.get('joinphrase', ''))
+                    joinphrase = "Main"  # 메인 아티스트 role = "Main"
+                else:
+                    joinphrase = normalize_joinphrase(artist_credit.get('joinphrase', ''))
                 # 피처링 가수 데이터 저장 (트랙-앨범 참여자 추가)
                 insertArtistTrack(conn, feat_artist_id, track_id, joinphrase)
 
