@@ -9,7 +9,7 @@ DB_CONFIG = {
     "user": "onhz",
     "password": "onhz",
     "host": "220.116.96.179",
-    "port": "65432"
+    "port": "5432"
 }
 
 def get_connection():
