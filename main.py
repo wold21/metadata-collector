@@ -12,9 +12,9 @@ import store_artist
 import store_albums
 
 
-def start(mode, artist_name=None, artist_mbid=None, country=None, limit=50):
+def start(mode, artist_name=None, artist_mbid=None, country=None, genre=None, limit=None):
     """선택한 데이터 적재 실행"""
-    logger.info(f"애플리케이션 실행 (mode: {mode}, name: {artist_name}, mbid: {artist_mbid}, country: {country}, limit: {limit})")
+    logger.info(f"애플리케이션 실행 (mode: {mode}, name: {artist_name}, mbid: {artist_mbid}, country: {country}, genre: {genre}, limit: {limit})")
 
     if mode == "top_artists":
         top_artists.saveMusicData(limit)
@@ -23,7 +23,7 @@ def start(mode, artist_name=None, artist_mbid=None, country=None, limit=50):
         if not country:
             logger.error("국가명을 입력해야 합니다. 예: --mode country --country 'Korea'")
             return
-        store_country.saveMusicData(country, limit)
+        store_country.saveMusicData(country, genre, limit)
 
     elif mode == "artist":
         if artist_name or artist_mbid:
@@ -60,7 +60,8 @@ if __name__ == "__main__":
     parser.add_argument("--name", type=str, help="아티스트명")
     parser.add_argument("--mbid", type=str, help="아티스트 MBID")
     parser.add_argument("--country", type=str, help="국가명(ISO 3166-1 country names standard)")
-    parser.add_argument("--limit", type=int, default=50, help="가져올 데이터 개수 (기본값: 50)")
+    parser.add_argument("--genre", type=str, choices=['blues', 'hip hop', 'electronic', 'jazz', 'lo-fi', 'rock', 'chill', 'acoustic', 'rnb', 'pop', 'ballad', 'indie', 'kpop'], help="장르")
+    parser.add_argument("--limit", type=int, help="가져올 데이터 개수 (기본값: 50)")
 
     args = parser.parse_args()
-    start(args.mode, args.name, args.mbid, args.country, args.limit)
+    start(args.mode, args.name, args.mbid, args.country, args.genre, args.limit)

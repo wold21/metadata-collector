@@ -63,6 +63,10 @@ python main.py --mode top_artists --limit 50
 
 # 2. 국가별 데이터 적재
 python main.py --mode country --country "Korea" --limit 50
+## 장르별로 적재
+python main.py --mode country --country Korea --genre kpop --limit 50
+## limit 없을 경우, 전체 데이터 적재
+python main.py --mode country --country Korea --genre kpop
 
 # 3. 아티스트 데이터 적재
 ## 아티스트명으로 적재
