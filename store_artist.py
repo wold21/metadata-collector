@@ -1,8 +1,11 @@
+import datetime
 from shared_info import SharedInfo
 from utils.common_request import get
 from utils.database import get_connection, fetch_one, insert_data, execute_query
 from utils.wikipedia import getWikiSummary
 from utils.logging_config import logger
+import requests
+import json
 
 
 def insertArtistTxn(artist_name=None, mbid=None):
@@ -61,6 +64,10 @@ def insertArtistTxn(artist_name=None, mbid=None):
             profile_path = get_artist_image(mbid)
 
             artist_id = insertArtist(conn, artist_name, mbid, country, bio, search_vector, profile_path)
+            
+            # 엘라스틱 서치 색인 작업
+            index_artist_to_elasticsearch(artist_id, artist_name, search_vector)
+
 
             for genre in artist_info.get('genres', []):
                 genre_id = insertGenre(conn, genre['name'])
@@ -126,3 +133,28 @@ def insertArtistGenre(conn, artist_id, genre_id):
         ON CONFLICT DO NOTHING
     """
     execute_query(conn, query, (artist_id, genre_id))
+
+def index_artist_to_elasticsearch(artist_id, artist_name, search_vector):
+    try:
+        es_url = SharedInfo.get_elasticsearch_host() + ":" + str(SharedInfo.get_elasticsearch_port())
+        
+        current_time = datetime.now().isoformat()
+        
+        doc = {
+            "id": str(artist_id),
+            "artist_name": artist_name,
+            "search_vector": search_vector,
+            "created_at": current_time
+        }
+        
+        response = requests.put(
+            f"{es_url}/artists/_doc/{artist_id}",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(doc)
+        )
+        response.raise_for_status()
+        
+        logger.info(f"엘라스틱서치에 아티스트 '{artist_name}' (ID: {artist_id}) 색인 완료")
+    
+    except Exception as e:
+        logger.error(f"엘라스틱서치 색인 중 오류 발생: {e}")

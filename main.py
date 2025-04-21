@@ -53,6 +53,8 @@ if __name__ == "__main__":
     SharedInfo.set_musicbrainz_base_url("https://musicbrainz.org/ws/2/")
     SharedInfo.set_theaudiodb_base_url('https://www.theaudiodb.com/api/v1/json/')
     SharedInfo.set_theaudiodb_api_key('523532')
+    SharedInfo.set_elasticsearch_host("220.116.96.179")
+    SharedInfo.set_elasticsearch_port(4200)
 
     # 실행 모드 설정
     parser = argparse.ArgumentParser(description="데이터 적재 실행")
