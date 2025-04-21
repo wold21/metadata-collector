@@ -136,7 +136,7 @@ def insertArtistGenre(conn, artist_id, genre_id):
 
 def index_artist_to_elasticsearch(artist_id, artist_name, search_vector):
     try:
-        es_url = SharedInfo.get_elasticsearch_host() + ":" + str(SharedInfo.get_elasticsearch_port())
+        es_url = "http://" + SharedInfo.get_elasticsearch_host() + ":" + str(SharedInfo.get_elasticsearch_port())
         
         current_time = datetime.now().isoformat()
         
