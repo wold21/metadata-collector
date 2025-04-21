@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from shared_info import SharedInfo
 from utils.common_request import get
 from utils.database import get_connection, fetch_one, insert_data, execute_query
