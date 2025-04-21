@@ -138,6 +138,29 @@ def index_artist_to_elasticsearch(artist_id, artist_name, search_vector):
     try:
         es_url = "http://" + SharedInfo.get_elasticsearch_host() + ":" + str(SharedInfo.get_elasticsearch_port())
         
+        # 기존에 존재하는 아티스트인지 검색
+        search_query = {
+            "query": {
+                "term": {
+                    "artist_name.keyword": artist_name
+                }
+            }
+        }
+        
+        search_response = requests.post(
+            f"{es_url}/artists/_search",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(search_query)
+        )
+        search_response.raise_for_status()
+        search_result = search_response.json()
+        
+        if search_result.get("hits", {}).get("total", {}).get("value", 0) > 0:
+            logger.info(f"엘라스틱서치에 아티스트 '{artist_name}'이(가) 이미 존재합니다. 색인 작업 건너뜀.")
+            return
+        #--------------------------------
+        
+        # 존재하지 않으면 색인 작업
         current_time = datetime.now().isoformat()
         
         doc = {
