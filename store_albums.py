@@ -151,7 +151,6 @@ def insertArtistAlbumsTxn(mbid):
 
                 log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin)
 
-
                 # Release 리스트 조회
                 release_group_id = album['id']
                 releases_info = get(SharedInfo.get_musicbrainz_base_url() + f"release-group/{release_group_id}", params = {
@@ -159,27 +158,28 @@ def insertArtistAlbumsTxn(mbid):
                     'fmt': 'json',
                 })
                 releases = releases_info.get('releases', [])
-                releases.sort(key=lambda x: x.get('date', ''), reverse=True)
 
+                priority_order = [
+                    ("quality == 'high'", lambda r: r.get('quality') == 'high'),
+                    ("status == 'Official' and country == artist_country", lambda r: r.get('status') == 'Official' and r.get('country') == artist_country),
+                    ("status == 'Official'", lambda r: r.get('status') == 'Official'),
+                    ("country == artist_country", lambda r: r.get('country') == artist_country),
+                    ("fallback (no match)", lambda r: True)
+                ]
                 latest_release = None
-                for release in releases:
-                    release_status = release.get('status')
-                    release_country = release.get('country')
-                    release_date = release.get('date')
+                reason = None
 
-                    if release_status == 'Official' and release_country == artist_country:
-                        latest_release = release
+                for desc, condition in priority_order:
+                    candidates = list(filter(condition, releases))
+                    if candidates:
+                        latest_release = candidates[0]
+                        reason = desc
                         break
-                    if release_status == 'Official':
-                        latest_release = release
-                    if release_country == artist_country:
-                        latest_release = release
 
-                if not latest_release and releases:
-                    latest_release = releases[0]
-
-                if not latest_release:
-                    continue
+                if latest_release:
+                    logger.info("• 선택된 release 이유 : {reason}")
+                else:
+                    logger.error("❌ release를 찾을 수 없습니다.")
     
                 # 트랙 리스트 조회
                 insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
