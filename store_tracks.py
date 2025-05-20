@@ -46,7 +46,7 @@ def normalize_joinphrase(joinphrase):
     normalized = NORMALIZED_JOINPHRASE.get(joinphrase.strip().lower())
 
     if normalized is None:
-        logger.warning(f"⚠️ 미등록 joinphrase 발견: '{joinphrase.strip().lower()}'")  
+        logger.warning(f"[Track] joinphrase 정규화 중 미등록 joinphrase 발견:'{joinphrase.strip().lower()}'")  
         return "Feat"
 
     return normalized
@@ -60,8 +60,8 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
     })
 
     tracks = tracks_info.get('media', [{}])[0].get('tracks', [])
-    logger.info(f"(3) 트랙 List >> 앨범 ID : {album_id} , 총 트랙 수 : {len(tracks)}")
-
+    logger.info(f"[Track] 앨범ID '{album_id}'에 총 {len(tracks)} 개의 트랙 발견!")
+    inserted_track_count = 0
     with get_connection() as conn:  
         feat_artists = {}
         for track in tracks:
@@ -70,10 +70,12 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
             track_rank = track.get('position')
 
             track_id = insertTrack(conn, album_id, track_name, track_duration, track_rank)
-            
+            inserted_track_count += 1
+            logger.info(f"[Track] {inserted_track_count}/{len(tracks)} 번 째 트랙 데이터 처리 시작")
+
             # track_id가 None인 경우 로그 찍고 다음 트랙으로 넘어가기
             if not track_id:
-                logger.warning(f"\t 이미 존재하는 트랙 Album : album_id={album_id}, track_name={track_name}\n")    
+                logger.warning(f"[Track] 저장 생략: 트랙 '{track_name}'이(가) 이미 존재합니다. (album_id: {album_id})")    
                 continue
 
             # 트랙별 참여 아티스트 조회 및 저장
@@ -88,8 +90,8 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
                 feat_artist_id = fetch_one(conn, "SELECT id FROM artist_tb WHERE mbid = %s", (feat_artist_mbid,))
 
                 if not feat_artist_id:
+                    logger.info(f"[Track] 피처링 아티스트 DB 미존재: '{feat_artist_mbid}' → 신규 저장 시도")
                     feat_artist_id = store_artist.insertArtistTxn(mbid=feat_artist_mbid)["artist_id"]
-                    logger.info(f"DB에 피처링 아티스트 {feat_artist_mbid} 추가됨.")
                 else:
                     feat_artist_id = feat_artist_id[0]
 
@@ -104,12 +106,13 @@ def insertAlbumTracksTxn(release_id, album_id, mbid):
                 # 중복 체크 후 앨범-아티스트 리스트에 추가
                 if feat_artist_id not in feat_artists:
                     feat_artists[feat_artist_id] = joinphrase
+            logger.info(f"[Track] 트랙 참여 아티스트 저장 완료: 트랙 '{track_name}'에 본인 포함 총 {len(recording_info.get('artist-credit', []))}명")
 
-        logger.info(f"앨범-아티스트 저장할 데이터 (feat_artists) : {feat_artists}")
         for feat_artist_id, joinphrase in feat_artists.items():
             insertArtistAlbum(conn, feat_artist_id, album_id, joinphrase)
 
-    print(f"\n")
+        logger.info(f"[Track] 앨범 참여 아티스트 저장 완료: 본인 포함 총 {len(feat_artists)}명")
+        logger.info(f"[Album] 앨범ID '{album_id}'의 트랙 저장 결과:  총 {len(tracks)}개 중 {inserted_track_count}개 저장됨")
 
 
 def insertTrack(conn, album_id, track_name, track_duration, track_rank):
@@ -120,8 +123,8 @@ def insertTrack(conn, album_id, track_name, track_duration, track_rank):
         RETURNING id;
     """
     track_id = insert_data(conn, query, (album_id, track_name, track_duration, track_rank))
-    if track_id:
-        logger.info(f"(3-1) [DB] >> 트랙 데이터 삽입 완료 (track_id: {track_id} / track_name : {track_name})")
+    # if track_id:
+        # logger.info(f"(3-1) [DB] >> 트랙 데이터 삽입 완료 (track_id: {track_id} / track_name : {track_name})")
     return track_id[0] if track_id else None
 
 
@@ -132,7 +135,7 @@ def insertArtistTrack(conn, artist_id, track_id, joinphrase):
         ON CONFLICT DO NOTHING
     """
     execute_query(conn, query, (artist_id, track_id, joinphrase))
-    logger.info(f"(3-2) [DB] >> 아티스트-트랙 관계 삽입 완료 (Artist ID: {artist_id}, Track ID: {track_id})")
+    # logger.info(f"(3-2) [DB] >> 아티스트-트랙 관계 삽입 완료 (Artist ID: {artist_id}, Track ID: {track_id})")
 
 
 def insertArtistAlbum(conn, artist_id, album_id, joinphrase):
@@ -142,4 +145,4 @@ def insertArtistAlbum(conn, artist_id, album_id, joinphrase):
         ON CONFLICT DO NOTHING
     """
     execute_query(conn, query, (artist_id, album_id, joinphrase))
-    logger.info(f"(3-3) [DB] >> 아티스트-앨범 관계 삽입 완료 (Artist ID: {artist_id}, Album ID: {album_id})")
+    # logger.info(f"(3-3) [DB] >> 아티스트-앨범 관계 삽입 완료 (Artist ID: {artist_id}, Album ID: {album_id})")

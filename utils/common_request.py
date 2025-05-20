@@ -6,7 +6,7 @@ from shared_info import SharedInfo
 def get(url, params):
     # 요청 Full URL 생성 및 출력
     full_url = f"{url}?" + "&".join([f"{key}={value}" for key, value in params.items()])
-    logger.info(f"✅ Request URL: {full_url}")
+    logger.info(f"✅ {full_url}")
 
     headers = {"User-Agent": SharedInfo.get_user_agent()} 
     response = requests.get(url, params=params, headers=headers) 

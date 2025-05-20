@@ -10,10 +10,10 @@ import json
 
 def insertArtistTxn(artist_name=None, mbid=None):
 
-    logger.info(f"아티스트 '{artist_name}' 데이터 조회 및 저장 시작")
+    logger.info(f"[Artist] 저장 시작: {artist_name}")
     
     if not mbid and not artist_name:
-        logger.warning("artist_name과 mbid 중 하나는 필수입니다.")
+        logger.warning("[Artist] 저장 실패: artist_name과 mbid 중 하나는 필수입니다.")
         return
 
     # mbid가 있는 경우, MBID로 아티스트 정보 조회 후 이름 재 세팅
@@ -26,7 +26,7 @@ def insertArtistTxn(artist_name=None, mbid=None):
         artist_name = artist_info.get('name')
 
         if not artist_name:
-            logger.warning(f"MBID '{mbid}'에 해당하는 아티스트 정보를 찾을 수 없습니다.")
+            logger.warning(f"[Artist] 저장 실패: MBID '{mbid}'에 해당하는 아티스트 정보를 찾을 수 없습니다.")
             return
 
     else:
@@ -41,17 +41,16 @@ def insertArtistTxn(artist_name=None, mbid=None):
         artist_info = next((a for a in artists if a.get('name', '').lower() == artist_name.lower()), None)
 
         if not artist_info:
-            logger.warning(f"정확 이름 '{artist_name}'에 해당하는 아티스트를 찾을 수 없습니다.")
+            logger.warning(f"[Artist] 저장 실패: 정확 이름 '{artist_name}'에 해당하는 아티스트를 찾을 수 없습니다.")
             return
 
         mbid = artist_info['id']
 
-    logger.info(f"아티스트 '{artist_name}' 데이터 조회 및 저장 시작 (MBID: {mbid})")
     try:
         with get_connection() as conn:
             artist_id = fetch_one(conn, "SELECT id FROM artist_tb WHERE mbid = %s", (mbid,))
             if artist_id:
-                logger.info(f"이미 존재하는 아티스트: {artist_name} (MBID: {mbid})")
+                logger.info(f"[Artist] 저장 생략: 아티스트 '{artist_name}'이(가) 이미 존재합니다. (MBID: {mbid})")
                 return {'artist_id': artist_id, 'artist_name': artist_name, 'artist_mbid': mbid}
 
             country = artist_info.get('country')
@@ -73,11 +72,11 @@ def insertArtistTxn(artist_name=None, mbid=None):
                 genre_id = insertGenre(conn, genre['name'])
                 insertArtistGenre(conn, artist_id, genre_id)
 
-            logger.info(f"아티스트 '{artist_name}' 데이터 저장 완료 (ID: {artist_id} / MBID: {mbid})")
+            logger.info(f"[Artist] 저장 완료: {artist_name} (ID: {artist_id} / MBID: {mbid})")
             return {'artist_id': artist_id, 'artist_name': artist_name, 'artist_mbid': mbid}
 
     except Exception as e:
-        logger.error(f"오류 발생 (아티스트 데이터 처리 중) : {e}")
+        logger.error(f"[Artist] 저장 실패: {artist_name} (MBID: {mbid}) | 오류: {e}")
 
 
 def get_artist_image(mbid):
@@ -87,16 +86,16 @@ def get_artist_image(mbid):
             params={"i": mbid}
         )
         if not response:  
-            logger.warning(f"[TheAudioDB] 응답 없음: {mbid}")
+            logger.warning(f"[Artist] 이미지 저장 실패: (MBID: {mbid}) | [TheAudioDB] 응답 없음")
             return None
         if response and "artists" in response and response["artists"]:
             artist_image = response["artists"][0].get("strArtistThumb")
             if artist_image:
-                logger.info(f"[TheAudioDB] 아티스트 이미지 URL: {artist_image}")
+                logger.info(f"[Artist] 이미지 저장 성공: {artist_image}")
                 return artist_image
         return None
     except Exception as e:
-        logger.warning(f"TheAudioDB 이미지 조회 실패 (MBID: {mbid}): {e}")
+        logger.warning(f"[Artist] 이미지 저장 실패: (MBID: {mbid}) | [TheAudioDB] 오류 : {e}")
         return None
 
 def insertArtist(conn, artist_name, mbid, country, bio, search_vector, profile_path):
@@ -106,7 +105,6 @@ def insertArtist(conn, artist_name, mbid, country, bio, search_vector, profile_p
         RETURNING id
     """
     artist_id = insert_data(conn, query, (artist_name, mbid, country, bio, search_vector, profile_path))
-    logger.info(f"아티스트 데이터 삽입 완료 (artist_id: {artist_id[0]})")
     return artist_id[0]
 
 def insertGenre(conn, code):
@@ -156,7 +154,7 @@ def index_artist_to_elasticsearch(artist_id, artist_name, search_vector):
         search_result = search_response.json()
         
         if search_result.get("hits", {}).get("total", {}).get("value", 0) > 0:
-            logger.info(f"엘라스틱서치에 아티스트 '{artist_name}'이(가) 이미 존재합니다. 색인 작업 건너뜀.")
+            logger.info(f"[Elasticsearch] 색인 작업 생략: 엘라스틱서치에 아티스트 '{artist_name}'이(가) 이미 존재합니다.")
             return
         #--------------------------------
         
@@ -177,7 +175,7 @@ def index_artist_to_elasticsearch(artist_id, artist_name, search_vector):
         )
         response.raise_for_status()
         
-        logger.info(f"엘라스틱서치에 아티스트 '{artist_name}' (ID: {artist_id}) 색인 완료")
+        logger.info(f"[Elasticsearch] 색인 작업 완료: 엘라스틱서치에 아티스트 '{artist_name}' (ID: {artist_id}) 색인 완료")
     
     except Exception as e:
-        logger.error(f"엘라스틱서치 색인 중 오류 발생: {e}")
+        logger.error(f"[Elasticsearch] 색인 작업 실패: {artist_name} (ID: {artist_id}) | 엘라스틱서치 색인 중 오류 발생: {e}")

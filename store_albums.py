@@ -36,16 +36,9 @@ SECONDARY_ALBUM_TYPE_DICT = {
 # 제외된 작업타입 (기타, 스포큰워드, 방송, 오디오북, 오디오 드라마, 부트랙)
 EXCLUDED_SECONDARY_TYPE_DICT = {'other', 'spokenword', 'broadcast', 'audiobook', 'audio drama', 'bootleg'}
 
-def log_album_info(cnt, total, album_name, release_type, secondary_types, release_date, release_date_origin, reason=None):
-    logger.info(f"\t{cnt}/{total} 앨범 정보")
+def log_album_info(album_name, reason=None):
     if reason:
-        logger.warning(f"\t앨범 insert 생략")
-        logger.warning(f"\t이유: {reason}")
-    logger.info(f'\t앨범명: {album_name}')
-    logger.info(f'\t발매타입: {release_type}')
-    logger.info(f'\t앨범작업타입: {secondary_types}')
-    logger.info(f'\t발매일: {release_date}')
-    logger.info(f'\t발매일(가공전): {release_date_origin}\n')
+        logger.warning(f"[Album] 저장 생략: {album_name} - {reason}")
 
 def insertArtistAlbumsTxn(mbid):
     base_url = SharedInfo.get_musicbrainz_base_url() + "release-group/"
@@ -62,8 +55,6 @@ def insertArtistAlbumsTxn(mbid):
     total_albums = first_response.get('release-group-count', 0)
     albums = first_response.get("release-groups", [])
     
-    logger.info(f"총 {total_albums}개의 앨범 발견")
-
     if total_albums > limit:
         offset = limit
 
@@ -86,12 +77,10 @@ def insertArtistAlbumsTxn(mbid):
     with get_connection() as conn:  
         artist_info = fetch_one_dict(conn, "SELECT id, artist_name, country FROM artist_tb WHERE mbid = %s", (mbid,))
         if not artist_info:
-            raise ValueError(f"아티스트 정보를 찾을 수 없습니다. mbid: {mbid}")
+            raise ValueError(f"[Album] 저장 실패: 아티스트 정보를 찾을 수 없습니다. (MBID: {mbid})")
 
         artist_name = artist_info['artist_name']
         artist_country = artist_info['country']
-        
-        logger.info(f"(2) 아티스트 앨범 List >> 아트스트명 : {artist_name} , 총 앨범 수 : {albums_info['release-group-count']}")
 
         cnt = 0
         for album in albums_info.get('release-groups', []):
@@ -104,20 +93,21 @@ def insertArtistAlbumsTxn(mbid):
                 release_date = parse_incomplete_date(album.get('first-release-date', ''))
                 release_date_origin = album.get('first-release-date', '')
                 release_groups_id = album['id']
+                logger.info(f"[Album] '{artist_name}'의 {cnt}/{albums_info['release-group-count']} 번 째 앨범 데이터 처리 시작")
                 
                 if not release_date_origin:
-                    log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "release_date_origin 없음")
+                    log_album_info(album_name, "release_date_origin 없음")
                     continue
                 
                 if 'secondary-types' in album:
                     if any(type_.lower() in EXCLUDED_SECONDARY_TYPE_DICT for type_ in album['secondary-types']):
-                        log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin, "제외된 secondary type 포함")
+                        log_album_info(album_name, "제외된 secondary type 포함")
                         continue
 
                 # DB에서 기존 album_id 조회
                 album_id = fetch_one(conn,  "SELECT id FROM album_tb WHERE title = %s AND release_date_origin = %s", (album_name, release_date_origin))
                 if album_id:
-                    logger.warning(f"\t 이미 존재하는 Album : {album_name}\n")    
+                    logger.warning(f"[Album] 저장 생략: 앨범 '{album_name}'이(가) 이미 존재합니다. (album_id: {album_id})")    
                     continue
 
                 # 앨범 이미지 다운로드 로직 추가. 
@@ -140,7 +130,7 @@ def insertArtistAlbumsTxn(mbid):
                 # 장르 정보 저장
                 genres = album.get('genres', [])
                 if not genres:
-                    logger.warning(f"앨범 '{album.get('title')}'에 장르 정보가 없습니다 (album_id: {album_id})")
+                    logger.warning(f"[Album] 장르 저장 실패: 앨범 '{album.get('title')}'에 장르 정보가 없습니다. (album_id: {album_id})")
                 else:
                     for genre in genres:
                         genre_name = genre['name']
@@ -148,8 +138,7 @@ def insertArtistAlbumsTxn(mbid):
                         genre_id = insertGenre(conn, genre_name)
                         # 앨범-장르 관계 저장
                         insertAlbumGenre(conn, album_id, genre_id)
-
-                log_album_info(cnt, albums_info['release-group-count'], album_name, album_relsase_code, album['secondary-types'], release_date, release_date_origin)
+                    logger.info(f"[Album] 장르 저장 완료: 앨범 '{album.get('title')}', 총 {len(genres)}건 장르 저장됨")
 
                 # Release 리스트 조회
                 release_group_id = album['id']
@@ -164,7 +153,7 @@ def insertArtistAlbumsTxn(mbid):
                     ("status == 'Official' and country == artist_country", lambda r: r.get('status') == 'Official' and r.get('country') == artist_country),
                     ("status == 'Official'", lambda r: r.get('status') == 'Official'),
                     ("country == artist_country", lambda r: r.get('country') == artist_country),
-                    ("fallback (no match)", lambda r: True)
+                    ("부합되는 데이터 없음 (release 첫번째 데이터)", lambda r: True)
                 ]
                 latest_release = None
                 reason = None
@@ -177,17 +166,17 @@ def insertArtistAlbumsTxn(mbid):
                         break
 
                 if latest_release:
-                    logger.info("• 선택된 release 이유 : {reason}")
-                else:
-                    logger.error("❌ release를 찾을 수 없습니다.")
+                    logger.info(f"[Album] release 선정 완료: {reason}")
+                # else:
+                    # logger.error("❌ release를 찾을 수 없습니다.")
     
                 # 트랙 리스트 조회
                 insertAlbumTracksTxn(latest_release['id'], album_id, mbid)
 
             except Exception as e:
-                    logger.error(f"오류 발생 (앨범 데이터 처리 중) {artist_name} : {e}\n")
+                    logger.error(f"[Album] 저장 실패: {artist_name} (MBID: {mbid}) | 오류: {e}")
 
-        logger.info(f"[앨범 저장 결과] 총 {albums_info['release-group-count']}개 중 {inserted_album_count}개 앨범 insert 완료")
+        logger.info(f"[Album] '{artist_name}'의 앨범 저장 결과: 총 {albums_info['release-group-count']}개 중 {inserted_album_count}개 앨범 저장 완료")
         update_representative_covers(mbid)
 
 
@@ -198,16 +187,16 @@ def get_album_image(mb_release_group_id):
             params={"i": mb_release_group_id}
         )
         if not response:  
-            logger.warning(f"[TheAudioDB] 응답 없음: {mb_release_group_id}")
+            logger.warning(f"[Album] 이미지 저장 실패: (mb_release_group_id: {mb_release_group_id}) | [TheAudioDB] 응답 없음")
             return None
         if "album" in response and response["album"]:
             album_image = response["album"][0].get("strAlbumThumb")
             if album_image:
-                logger.info(f"[TheAudioDB] 앨범 이미지 URL: {album_image}")
+                logger.info(f"[Album] 이미지 저장 성공: {album_image}")
                 return album_image
         return None
     except Exception as e:
-        logger.warning(f"TheAudioDB 이미지 조회 실패 (MBID: {mb_release_group_id}): {e}")
+        logger.warning(f"[Album] 이미지 저장 실패: (mb_release_group_id: {mb_release_group_id}) | [TheAudioDB] 오류 : {e}")
         return None
     
     
@@ -218,7 +207,6 @@ def insertAlbum(conn, title, release_date, release_date_origin, cover_path, mbid
         RETURNING id
     """
     album_id = insert_data(conn, query, (title, release_date, release_date_origin, cover_path, mbid))
-    logger.info(f"(2-1) [DB] >> 앨범 데이터 삽입 완료 (album_id: {album_id}, title: {title})")
     return album_id[0] if album_id else None
 
 
@@ -229,7 +217,6 @@ def insertAlbumType(conn, album_release_code, album_id, category):
         ON CONFLICT DO NOTHING;
     """
     execute_query(conn, query, (album_id, category, album_release_code ))
-    logger.info(f"(2-2) [DB] >> 앨범-타입 데이터 삽입 완료 (album_id: {album_id}, category: {category}, album_release_code: {album_release_code})")
 
 
 def insertGenre(conn, code):
@@ -288,4 +275,4 @@ def update_representative_covers(mbid):
 
     with get_connection() as conn:
         updated_rows = execute_query(conn, query, (mbid, mbid))
-        logger.info(f"[DB] >> 대표 이미지 없는 앨범들의 cover_path {updated_rows}건 업데이트 완료 (artist mbid: {mbid})")
+        logger.info(f"[Album] 이미지 업데이트: 대표 이미지 없는 앨범들의 cover_path {updated_rows}건 업데이트 완료 (artist mbid: {mbid})")

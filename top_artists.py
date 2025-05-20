@@ -22,7 +22,7 @@ def saveMusicData(limit=50):
     # for page in range(65, TOTAL_PAGE+1):
 
     try:
-        logger.info(f"▶ top artist 데이터 조회 시작...")
+        logger.info(f"[Top Arist] 데이터 조회 시작...")
         response_json = get(SharedInfo.get_lastfm_base_url(), params = {
             'method': 'chart.gettopartists',
             'api_key': SharedInfo.get_lastfm_api_key(),
@@ -39,13 +39,13 @@ def saveMusicData(limit=50):
             artist_name = artist.get('name')
             artist_mbid = artist.get('mbid')
 
-            logger.info(f"\tTop Arist {cnt}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
+            logger.info(f"[Top Arist] {cnt}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
             artist_result = store_artist.insertArtistTxn(artist_name, artist_mbid)
             if artist_result:
                 store_albums.insertArtistAlbumsTxn(artist_result['artist_mbid'])
 
-        logger.info(f"✔ Top artist 전체 데이터 저장 완료! (총 {len(artist)}명)")
+        logger.info(f"[Top Arist] 전체 데이터 저장 완료! (총 {len(artist)}명)")
     except Exception as e:
-        logger.error(f"오류 발생: {e}\n")
+        logger.error(f"[Top Arist] 오류 발생: {e}\n")
 
     

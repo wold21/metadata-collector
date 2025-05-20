@@ -14,7 +14,7 @@ def saveMusicData(country_name, genre=None, limit=50):
         limit = 100
 
     try:
-        logger.info(f"▶ {country_name} (✨장르:{genre if genre else '전체 장르'}) 데이터 조회 시작...")
+        logger.info(f"[Country-Genre] ▶ {country_name} (✨장르:{genre if genre else '전체 장르'}) 데이터 조회 시작...")
 
         offset = 0
         total_cnt = 0  # 총 처리된 데이터 수
@@ -22,7 +22,7 @@ def saveMusicData(country_name, genre=None, limit=50):
             artists = fetch_artists_from_musicbrainz(country_name, genre, limit, offset)
 
             if not artists:
-                logger.warning(f"{country_name} 데이터가 없습니다.")
+                logger.warning(f"[Country-Genre] {country_name} 데이터가 없습니다.")
                 break
 
             # 아티스트 데이터를 처리하고 DB에 저장
@@ -35,10 +35,10 @@ def saveMusicData(country_name, genre=None, limit=50):
             # 다음 페이지로 이동
             offset += limit
 
-        logger.info(f"✔ {country_name} ✨{genre or '전체'} 데이터 저장 완료! (총 {total_cnt}명)")
+        logger.info(f"[Country-Genre] {country_name} ✨{genre or '전체'} 데이터 저장 완료! (총 {total_cnt}명)")
 
     except Exception as e:
-        logger.error(f"오류 발생: {e}\n")
+        logger.error(f"[Country-Genre] 오류 발생: {e}\n")
 
 
 def fetch_artists_from_musicbrainz(country_name, genre=None, limit=50, offset=0):
@@ -62,7 +62,7 @@ def fetch_artists_from_musicbrainz(country_name, genre=None, limit=50, offset=0)
         response_json = get(SharedInfo.get_musicbrainz_base_url() + "artist/", params=params)
         return response_json.get('artists', [])
     except Exception as e:
-        logger.error(f"MusicBrainz API 호출 중 오류 발생: {e}")
+        logger.error(f"[Country-Genre] MusicBrainz API 호출 중 오류 발생: {e}")
         return []
 
 def process_artist_data(country_name, genre, artists, total_cnt):
@@ -74,7 +74,7 @@ def process_artist_data(country_name, genre, artists, total_cnt):
         artist_name = artist.get('name')
         artist_mbid = artist.get('id')
 
-        logger.info(f"\n\t{country_name} (✨장르:{genre if genre else '전체 장르'}) Artist {current_data_index}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
+        logger.info(f"[Country-Genre] {country_name} (✨장르:{genre if genre else '전체 장르'}) Artist {current_data_index}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
 
         # 아티스트 데이터를 DB에 저장
         artist_result = store_artist.insertArtistTxn(artist_name, artist_mbid)
