@@ -77,4 +77,6 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, help="가져올 데이터 개수 (기본값: 50)")
 
     args = parser.parse_args()
+
+    setup_logging(args)  # None이 아닌 인자 기반으로 로그 설정
     start(args.mode, args.name, args.mbid, args.country, args.genre, args.limit, args.names)

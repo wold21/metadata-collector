@@ -1,17 +1,26 @@
 import logging
+import os
+from datetime import datetime
 
-# 로그 설정 함
-def setup_logging():
+logger = logging.getLogger()
+
+def setup_logging(args):
+    log_dir = os.path.join(os.getcwd(), 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    arg_parts = [str(v) for v in vars(args).values() if v is not None]
+    arg_part_str = "_".join(arg_parts) if arg_parts else "no_args"
+    log_filename = f"{date_str}_{arg_part_str}.log"
+    log_path = os.path.join(log_dir, log_filename)
+
     logging.basicConfig(
-        level=logging.INFO,  # 로그 레벨 설정
+        level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler("log.txt"),  # 파일로 로그 저장
-            logging.StreamHandler()  # 콘솔에도 출력
+            logging.FileHandler(log_path),
+            logging.StreamHandler()
         ]
     )
 
-setup_logging()
-
-# 로깅 객체 가져오기
-logger = logging.getLogger()
+    logger.info(f"로그 파일 생성: {log_path}")
