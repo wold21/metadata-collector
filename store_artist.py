@@ -10,7 +10,7 @@ import json
 
 def insertArtistTxn(artist_name=None, mbid=None):
 
-    logger.info(f"[Artist] 저장 시작: {artist_name}")
+    logger.info(f"[Artist] 저장 시작: {artist_name} (MBID: {mbid})")
     
     if not mbid and not artist_name:
         logger.warning("[Artist] 저장 실패: artist_name과 mbid 중 하나는 필수입니다.")
