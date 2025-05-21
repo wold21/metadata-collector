@@ -29,8 +29,8 @@ def saveMusicData(artist_names):
                 logger.error(f"[Artist] 저장 실패: '{artist_name}' 처리 중 오류 발생: {artist_e}")
 
         logger.info(f"[이름으로 가수들 저장] 성공: {len(success_names)} / 실패: {len(fail_names)} / 총: {len(artist_names)}명")
-        logger.info(f"성공 아티스트: {', '.join(success_names) if success_names else '없음'}")
-        logger.info(f"실패 아티스트: {', '.join(fail_names) if fail_names else '없음'}")
+        logger.info(f"✅ 성공 아티스트: {', '.join(success_names) if success_names else '없음'}")
+        logger.info(f"❌ 실패 아티스트: {', '.join(fail_names) if fail_names else '없음'}")
 
     except Exception as e:
         logger.error(f"[이름으로 가수들 저장] 오류 발생: {e}")

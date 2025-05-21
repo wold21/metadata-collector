@@ -33,18 +33,32 @@ def saveMusicData(limit=50):
 
         artists = response_json['artists']['artist']
 
+        success_names = []
+        fail_names = []
+
         cnt = 0
-        for artist in artists:
+        for idx, artist in enumerate(artists, start=1):
             cnt += 1
             artist_name = artist.get('name')
             artist_mbid = artist.get('mbid')
 
-            logger.info(f"[Top Arist] {cnt}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
-            artist_result = store_artist.insertArtistTxn(artist_name, artist_mbid)
-            if artist_result:
-                store_albums.insertArtistAlbumsTxn(artist_result['artist_mbid'])
+            logger.info(f"[Top Artist] {idx}/{len(artists)}번째 작업 시작 → {artist_name} ({artist_mbid})")
 
-        logger.info(f"[Top Arist] 전체 데이터 저장 완료! (총 {len(artist)}명)")
+            try:
+                artist_result = store_artist.insertArtistTxn(artist_name, artist_mbid)
+                if artist_result:
+                    success_names.append(artist_name)
+                    store_albums.insertArtistAlbumsTxn(artist_result['artist_mbid'])
+                else:
+                    fail_names.append(artist_name)
+            except Exception as artist_e:
+                fail_names.append(artist_name)
+                logger.error(f"[Artist] 저장 실패: '{artist_name}' 처리 중 오류 발생: {artist_e}")
+
+        logger.info(f"[Top Artist] 성공: {len(success_names)} / 실패: {len(fail_names)} / 총: {len(artists)}명")
+        logger.info(f"✅ 성공 아티스트: {', '.join(success_names) if success_names else '없음'}")
+        logger.info(f"❌ 실패 아티스트: {', '.join(fail_names) if fail_names else '없음'}")
+
     except Exception as e:
         logger.error(f"[Top Arist] 오류 발생: {e}\n")
 

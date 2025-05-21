@@ -41,7 +41,7 @@ def insertArtistTxn(artist_name=None, mbid=None):
         artist_info = next((a for a in artists if a.get('name', '').lower() == artist_name.lower()), None)
 
         if not artist_info:
-            logger.warning(f"[Artist] 저장 실패: 정확 이름 '{artist_name}'에 해당하는 아티스트를 찾을 수 없습니다.")
+            logger.warning(f"[Artist] 저장 실패: '{artist_name}'에 해당하는 아티스트를 찾을 수 없습니다. 정확한 아티스트명을 입력해주세요.")
             return
 
         mbid = artist_info['id']
