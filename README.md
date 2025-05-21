@@ -77,4 +77,7 @@ python main.py --mode artist --mbid "b6b21b0c-a706-4b46-a929-bd4d21b06cad"
 # 4. 특정 아티스트의 앨범/트랙 데이터 적재
 python main.py --mode album --mbid "b6b21b0c-a706-4b46-a929-bd4d21b06cad"
 
+# 5. 아티스트명으로 다수 아티스트 데이터 적재
+python main.py --mode artist --names "BTS,IU,Red Velvet,New Jeans"
+
 ```

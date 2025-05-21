@@ -10,11 +10,11 @@ import top_artists
 import store_country
 import store_artist
 import store_albums
+import store_artists_by_name
 
-
-def start(mode, artist_name=None, artist_mbid=None, country=None, genre=None, limit=None):
+def start(mode, artist_name=None, artist_mbid=None, country=None, genre=None, limit=None, names=None):
     """선택한 데이터 적재 실행"""
-    logger.info(f"애플리케이션 실행 (mode: {mode}, name: {artist_name}, mbid: {artist_mbid}, country: {country}, genre: {genre}, limit: {limit})")
+    logger.info(f"애플리케이션 실행 (mode: {mode}, name: {artist_name}, mbid: {artist_mbid}, country: {country}, genre: {genre}, limit: {limit}, names: {names})")
 
     if mode == "top_artists":
         top_artists.saveMusicData(limit)
@@ -24,6 +24,16 @@ def start(mode, artist_name=None, artist_mbid=None, country=None, genre=None, li
             logger.error("국가명을 입력해야 합니다. 예: --mode country --country 'Korea'")
             return
         store_country.saveMusicData(country, genre, limit)
+    
+    elif mode == "artist":
+        if args.names:
+            artist_names = [n.strip() for n in args.names.split(',') if n.strip()]
+            store_artists_by_name.saveMusicData(artist_names)
+        elif args.name or artist_mbid:
+            store_artist.insertArtistTxn(args.name, artist_mbid)
+        else:
+            logger.error("아티스트명 또는 MBID를 입력해야 합니다.")
+            return
 
     elif mode == "artist":
         if artist_name or artist_mbid:
@@ -60,10 +70,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="데이터 적재 실행")
     parser.add_argument("--mode", type=str, required=True, help="실행 모드 (top_artists / country / artist / album)")
     parser.add_argument("--name", type=str, help="아티스트명")
+    parser.add_argument("--names", type=str, help="여러 아티스트 이름(쉼표 구분)")
     parser.add_argument("--mbid", type=str, help="아티스트 MBID")
     parser.add_argument("--country", type=str, help="국가명(ISO 3166-1 country names standard)")
     parser.add_argument("--genre", type=str, choices=['blues', 'hip hop', 'electronic', 'jazz', 'lo-fi', 'rock', 'chill', 'acoustic', 'rnb', 'pop', 'ballad', 'indie', 'kpop'], help="장르")
     parser.add_argument("--limit", type=int, help="가져올 데이터 개수 (기본값: 50)")
 
     args = parser.parse_args()
-    start(args.mode, args.name, args.mbid, args.country, args.genre, args.limit)
+    start(args.mode, args.name, args.mbid, args.country, args.genre, args.limit, args.names)
