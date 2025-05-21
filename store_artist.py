@@ -54,7 +54,8 @@ def insertArtistTxn(artist_name=None, mbid=None):
                 return {'artist_id': artist_id, 'artist_name': artist_name, 'artist_mbid': mbid}
 
             country = artist_info.get('country')
-            bio = getWikiSummary(artist_name)
+            bio = ""
+            # bio = getWikiSummary(artist_name)
             
             alias_names = {alias['name'].strip() for alias in artist_info.get('aliases', []) if 'name' in alias}
             search_vector = " ".join(sorted({artist_name.strip()} | alias_names))
