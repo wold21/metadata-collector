@@ -5,55 +5,55 @@ import store_albums
 from utils.logging_config import logger
 
 def saveMusicData(country_name, genre=None, limit=50):
-    """
-    특정 국가의 전체 데이터를 MusicBrainz API에서 가져와 DB에 저장하는 함수
-    :param country_name: 국가명 (예: 'Korea', 'Japan', 'United States')
-    :param limit: 가져올 데이터 개수 (기본값 50)
-    """
     if limit is None:
         limit = 100
 
-    try:
-        logger.info(f"[Country-Genre] ▶ {country_name} (✨장르:{genre if genre else '전체 장르'}) 데이터 조회 시작...")
-        
-        offset = 0
-        total_cnt = 0  # 총 처리된 데이터 수
-        success_names = []
-        fail_names = []
+    logger.info(f"[Country-Genre] ▶ {country_name} (✨장르:{genre or '전체 장르'}) 데이터 조회 시작...")
 
-        while True:
-            artists = fetch_artists_from_musicbrainz(country_name, genre, limit, offset)
+    offset = 0
+    record_index = 1  # 전체 기준 몇 번째 레코드인지
+    success_names = []
+    fail_names = []
+    total_records = None
 
-            if not artists:
-                logger.warning(f"[Country-Genre] {country_name} 데이터가 없습니다.")
-                break
+    while True:
+        artists, total_records = fetch_artists_from_musicbrainz(country_name, genre, limit, offset)
+        if not artists:
+            logger.warning(f"[Country-Genre] {country_name} 데이터가 없습니다.")
+            break
 
-            # 아티스트 데이터를 처리하고 DB에 저장
-            total_cnt, success, fail = process_artist_data(country_name, genre, artists, total_cnt)
-            success_names.extend(success)
-            fail_names.extend(fail)
+        for i, artist in enumerate(artists, start=1):
+            artist_name = artist.get('name')
+            artist_mbid = artist.get('id')
 
-            # 가져온 데이터가 limit보다 적으면 마지막 페이지로 간주하고 종료
-            if len(artists) <= limit:
-                break
+            logger.info(
+                f"[Country-Genre] {country_name} (✨장르:{genre or '전체 장르'}) "
+                f"Artist {record_index}/{total_records or '?'}번째 작업 시작 → {artist_name} ({artist_mbid})"
+            )
 
-            offset += limit  # 다음 페이지 offset
+            try:
+                result = store_artist.insertArtistTxn(artist_name, artist_mbid)
+                if result:
+                    store_albums.insertArtistAlbumsTxn(result['artist_mbid'])
+                    success_names.append(artist_name)
+                else:
+                    fail_names.append(artist_name)
+            except Exception as e:
+                fail_names.append(artist_name)
+                logger.error(f"[Country-Genre] 저장 실패: '{artist_name}' 처리 중 오류 발생: {e}")
 
-        logger.info(f"[Country-Genre] {country_name} ✨{genre or '전체'} - 성공: {len(success_names)} / 실패: {len(fail_names)} / 총: {len(artists)}명")
-        logger.info(f"✅ 성공 아티스트: {', '.join(success_names) if success_names else '없음'}")
-        logger.info(f"❌ 실패 아티스트: {', '.join(fail_names) if fail_names else '없음'}")
+            record_index += 1
 
-    except Exception as e:
-        logger.error(f"[Country-Genre] 오류 발생: {e}\n")
+        offset += limit
+        if offset >= (total_records or 0):
+            break
+
+    logger.info(f"[Country-Genre] {country_name} ✨{genre or '전체'} - 성공: {len(success_names)} / 실패: {len(fail_names)} / 총 처리: {record_index - 1}명")
+    logger.info(f"✅ 성공 아티스트: {', '.join(success_names) if success_names else '없음'}")
+    logger.info(f"❌ 실패 아티스트: {', '.join(fail_names) if fail_names else '없음'}")
 
 
 def fetch_artists_from_musicbrainz(country_name, genre=None, limit=50, offset=0):
-    """
-    MusicBrainz API에서 특정 국가와 장르에 해당하는 아티스트 데이터를 가져오는 함수
-    :param country_name: 국가명 (예: 'Korea', 'Japan', 'United States')
-    :param genre: 장르 (예: 'blues', 'electronic', 'kpop' 등, 선택사항)
-    :return: 아티스트 데이터 목록
-    """
     params = {
         'query': f'area:{country_name}',
         'fmt': 'json',
@@ -62,14 +62,16 @@ def fetch_artists_from_musicbrainz(country_name, genre=None, limit=50, offset=0)
     }
 
     if genre:
-        params['query'] += f' AND tag:{genre}'  # 장르 추가
+        params['query'] += f' AND tag:{genre}'
 
     try:
         response_json = get(SharedInfo.get_musicbrainz_base_url() + "artist/", params=params)
-        return response_json.get('artists', [])
+        artists = response_json.get('artists', [])
+        count = response_json.get('count', 0)
+        return artists, count
     except Exception as e:
         logger.error(f"[Country-Genre] MusicBrainz API 호출 중 오류 발생: {e}")
-        return []
+        return [], 0
 
 def process_artist_data(country_name, genre, artists, total_cnt):
     """
@@ -83,7 +85,9 @@ def process_artist_data(country_name, genre, artists, total_cnt):
     for idx, artist in enumerate(artists, start=1):
         artist_name = artist.get('name')
         artist_mbid = artist.get('id')
-
+        logger.info(f"[Country-Genre] {country_name} (✨장르:{genre if genre else '전체 장르'}) "
+            f"Artist {total_cnt + idx}/{total_available or '?'}번째 데이터 작업 시작 → {artist_name} ({artist_mbid})"
+        )
         logger.info(f"[Country-Genre] {country_name} (✨장르:{genre if genre else '전체 장르'}) Artist {idx}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
 
         try:
