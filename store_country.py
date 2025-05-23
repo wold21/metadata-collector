@@ -11,7 +11,7 @@ def saveMusicData(country_name, genre=None, limit=50):
     logger.info(f"[Country-Genre] ▶ {country_name} (✨장르:{genre or '전체 장르'}) 데이터 조회 시작...")
 
     offset = 0
-    record_index = 1  # 전체 기준 몇 번째 레코드인지
+    record_index = 1
     success_names = []
     fail_names = []
     total_records = None
@@ -37,9 +37,9 @@ def saveMusicData(country_name, genre=None, limit=50):
                     store_albums.insertArtistAlbumsTxn(result['artist_mbid'])
                     success_names.append(artist_name)
                 else:
-                    fail_names.append(artist_name)
+                    fail_names.append((artist_name, artist_mbid))
             except Exception as e:
-                fail_names.append(artist_name)
+                fail_names.append((artist_name, artist_mbid))
                 logger.error(f"[Country-Genre] 저장 실패: '{artist_name}' 처리 중 오류 발생: {e}")
 
             record_index += 1
@@ -48,10 +48,16 @@ def saveMusicData(country_name, genre=None, limit=50):
         if offset >= (total_records or 0):
             break
 
+    # 재시도
+    if fail_names:
+        logger.info(f"🔁 실패한 {len(fail_names)}명의 아티스트 저장 재시도 시작...")
+        retry_success, retry_fail = retry_failed_artists(fail_names)
+        success_names.extend(retry_success)
+        fail_names = retry_fail  # 재시도 이후에도 실패한 아티스트만 남김
+
     logger.info(f"[Country-Genre] {country_name} ✨{genre or '전체'} - 성공: {len(success_names)} / 실패: {len(fail_names)} / 총 처리: {record_index - 1}명")
     logger.info(f"✅ 성공 아티스트: {', '.join(success_names) if success_names else '없음'}")
-    logger.info(f"❌ 실패 아티스트: {', '.join(fail_names) if fail_names else '없음'}")
-
+    logger.info(f"❌ 실패 아티스트: {', '.join(name for name, _ in fail_names) if fail_names else '없음'}")
 
 def fetch_artists_from_musicbrainz(country_name, genre=None, limit=50, offset=0):
     params = {
@@ -73,33 +79,22 @@ def fetch_artists_from_musicbrainz(country_name, genre=None, limit=50, offset=0)
         logger.error(f"[Country-Genre] MusicBrainz API 호출 중 오류 발생: {e}")
         return [], 0
 
-def process_artist_data(country_name, genre, artists, total_cnt):
-    """
-    아티스트 데이터를 처리하고, DB에 저장하는 함수
-    :return: 업데이트된 처리된 데이터 수
-    """
+def retry_failed_artists(fail_list):
+    success = []
+    still_fail = []
 
-    success_names = []
-    fail_names = []
-
-    for idx, artist in enumerate(artists, start=1):
-        artist_name = artist.get('name')
-        artist_mbid = artist.get('id')
-        logger.info(f"[Country-Genre] {country_name} (✨장르:{genre if genre else '전체 장르'}) "
-            f"Artist {total_cnt + idx}/{total_available or '?'}번째 데이터 작업 시작 → {artist_name} ({artist_mbid})"
-        )
-        logger.info(f"[Country-Genre] {country_name} (✨장르:{genre if genre else '전체 장르'}) Artist {idx}/{len(artists)} 번째 데이터 작업 시작 → {artist_name} ({artist_mbid})")
-
+    for artist_name, artist_mbid in fail_list:
         try:
-            # 아티스트 데이터를 DB에 저장
-            artist_result = store_artist.insertArtistTxn(artist_name, artist_mbid)
-            if artist_result:
-                store_albums.insertArtistAlbumsTxn(artist_result['artist_mbid'])
-                success_names.append(artist_name)
+            logger.info(f"[Retry] 저장 재시도 중 → {artist_name} ({artist_mbid})")
+            result = store_artist.insertArtistTxn(artist_name, artist_mbid)
+            if result:
+                store_albums.insertArtistAlbumsTxn(result['artist_mbid'])
+                success.append(artist_name)
             else:
-                fail_names.append(artist_name)
+                still_fail.append((artist_name, artist_mbid))
         except Exception as e:
-            fail_names.append(artist_name)
-            logger.error(f"[Country-Genre] 저장 실패: '{artist_name}' 처리 중 오류 발생: {e}")
+            still_fail.append((artist_name, artist_mbid))
+            logger.error(f"[Retry] 저장 실패: '{artist_name}' 재시도 중 오류 발생: {e}")
 
-    return total_cnt + len(artists), success_names, fail_names
+    return success, still_fail
+
