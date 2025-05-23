@@ -9,7 +9,21 @@ def setup_logging(args):
     os.makedirs(log_dir, exist_ok=True)
 
     date_str = datetime.now().strftime("%Y-%m-%d")
-    arg_parts = [str(v) for v in vars(args).values() if v is not None]
+
+    def shorten(value, max_len=30):
+        if isinstance(value, str) and len(value) > max_len:
+            return value[:max_len] + "..."
+        return str(value)
+
+    arg_parts = []
+    for k, v in vars(args).items():
+        if v is not None:
+            # names 인자에만 30자 제한 적용
+            if k == 'names':
+                arg_parts.append(shorten(v))
+            else:
+                arg_parts.append(str(v))
+
     arg_part_str = "_".join(arg_parts) if arg_parts else "no_args"
     log_filename = f"{date_str}_{arg_part_str}.log"
     log_path = os.path.join(log_dir, log_filename)
